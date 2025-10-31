@@ -1,0 +1,149 @@
+package com.dailydrug.presentation.main
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.dailydrug.domain.model.ScheduledDose
+import com.dailydrug.domain.model.MedicationStatus
+import com.dailydrug.domain.usecase.GetTodayMedicationsUseCase
+import com.dailydrug.domain.usecase.RecordMedicationUseCase
+import com.dailydrug.domain.usecase.ScheduleNotificationUseCase
+import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import javax.inject.Inject
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+@OptIn(ExperimentalCoroutinesApi::class)
+@HiltViewModel
+class MainViewModel @Inject constructor(
+    private val getTodayMedicationsUseCase: GetTodayMedicationsUseCase,
+    private val recordMedicationUseCase: RecordMedicationUseCase,
+    private val scheduleNotificationUseCase: ScheduleNotificationUseCase
+) : ViewModel() {
+
+    private val selectedDate = MutableStateFlow(LocalDate.now())
+
+    private val _uiState = MutableStateFlow(MainUiState())
+    val uiState: StateFlow<MainUiState> = _uiState
+
+    private val _events = MutableSharedFlow<MainUiEvent>()
+    val events = _events.asSharedFlow()
+
+    init {
+        _uiState.update { it.copy(isLoading = true) }
+        observeMedications()
+    }
+
+    private fun observeMedications() {
+        viewModelScope.launch {
+            selectedDate
+                .flatMapLatest { date ->
+                    getTodayMedicationsUseCase(date)
+                        .map { doses -> date to doses }
+                }
+                .collect { (date, doses) ->
+                    _uiState.update { state ->
+                        state.copy(
+                            selectedDate = date,
+                            todayMedications = doses.map { it.toUi() },
+                            isLoading = false
+                        )
+                    }
+                }
+        }
+    }
+
+    fun onPreviousDay() {
+        val date = _uiState.value.selectedDate.minusDays(1)
+        selectedDate.value = date
+        _uiState.update { it.copy(isLoading = true) }
+    }
+
+    fun onNextDay() {
+        val date = _uiState.value.selectedDate.plusDays(1)
+        selectedDate.value = date
+        _uiState.update { it.copy(isLoading = true) }
+    }
+
+    fun onToday() {
+        val today = LocalDate.now()
+        if (_uiState.value.selectedDate == today) return
+        selectedDate.value = today
+        _uiState.update { it.copy(isLoading = true) }
+    }
+
+    fun onSelectDate(date: LocalDate) {
+        selectedDate.value = date
+        _uiState.update { it.copy(isLoading = true) }
+    }
+
+    fun onToggleTaken(recordId: Long, currentStatus: MedicationStatus) {
+        val isCurrentlyTaken = currentStatus == MedicationStatus.TAKEN
+        viewModelScope.launch {
+            runCatching {
+                recordMedicationUseCase(
+                    RecordMedicationUseCase.Params(
+                        recordId = recordId,
+                        markAsTaken = !isCurrentlyTaken
+                    )
+                )
+                if (isCurrentlyTaken) {
+                    // 복용을 취소하면 지나간 시각일 경우 곧바로 알림이 울리지 않도록 1시간 후로 보정
+                    scheduleNotificationUseCase(
+                        recordId = recordId,
+                        triggerAt = LocalDateTime.now().plusHours(1)
+                    )
+                }
+                _events.emit(
+                    MainUiEvent.ShowMessage(
+                        if (isCurrentlyTaken) "복용 상태를 취소했어요." else "복용 완료 처리했어요."
+                    )
+                )
+            }.onFailure {
+                _events.emit(MainUiEvent.ShowMessage("복용 상태 변경에 실패했어요."))
+            }
+        }
+    }
+
+    fun onSkip(recordId: Long) {
+        viewModelScope.launch {
+            runCatching {
+                recordMedicationUseCase(
+                    RecordMedicationUseCase.Params(
+                        recordId = recordId,
+                        markAsTaken = false,
+                        skip = true
+                    )
+                )
+                _events.emit(MainUiEvent.ShowMessage("해당 복용을 건너뛰었습니다."))
+            }.onFailure {
+                _events.emit(MainUiEvent.ShowMessage("건너뛰기 처리에 실패했어요."))
+            }
+        }
+    }
+
+    private fun ScheduledDose.toUi(): TodayMedication = TodayMedication(
+        recordId = recordId,
+        scheduleId = scheduleId,
+        medicineId = medicine.id,
+        medicineName = medicine.name,
+        dosage = medicine.dosage,
+        scheduledTime = scheduledDateTime.toLocalTime(),
+        status = status,
+        takenTime = takenDateTime,
+        color = medicine.color
+    )
+}
+
+sealed interface MainUiEvent {
+    data class ShowMessage(val message: String) : MainUiEvent
+}
