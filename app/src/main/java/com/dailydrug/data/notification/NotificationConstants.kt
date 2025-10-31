@@ -16,6 +16,7 @@ object NotificationConstants {
     const val EXTRA_MEDICINE_NAME = "extra_medicine_name"
     const val EXTRA_DOSAGE = "extra_dosage"
     const val EXTRA_SCHEDULED_TIME = "extra_scheduled_time"
+    const val EXTRA_MEDICINE_ID = "extra_medicine_id"
 
     const val REMINDER_INTERVAL_MILLIS = 60 * 60 * 1000L // 1 hour
 

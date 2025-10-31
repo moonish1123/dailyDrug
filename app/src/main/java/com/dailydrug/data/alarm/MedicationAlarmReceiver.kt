@@ -13,6 +13,7 @@ import com.dailydrug.data.notification.NotificationConstants.ACTION_TAKE
 import com.dailydrug.data.notification.NotificationConstants.ACTION_TAKE_TODAY
 import com.dailydrug.data.notification.NotificationConstants.EXTRA_DOSAGE
 import com.dailydrug.data.notification.NotificationConstants.EXTRA_MEDICINE_NAME
+import com.dailydrug.data.notification.NotificationConstants.EXTRA_MEDICINE_ID
 import com.dailydrug.data.notification.NotificationConstants.EXTRA_RECORD_ID
 import com.dailydrug.data.notification.NotificationConstants.EXTRA_SCHEDULED_TIME
 import com.dailydrug.data.notification.NotificationHelper
@@ -43,11 +44,13 @@ class MedicationAlarmReceiver : BroadcastReceiver() {
         val medicineName = intent.getStringExtra(EXTRA_MEDICINE_NAME).orEmpty()
         val dosage = intent.getStringExtra(EXTRA_DOSAGE).orEmpty()
         val scheduledTime = intent.getStringExtra(EXTRA_SCHEDULED_TIME).orEmpty()
+        val medicineId = intent.getLongExtra(EXTRA_MEDICINE_ID, -1L)
 
         when (intent.action) {
             ACTION_REMIND -> {
                 NotificationHelper(context).showReminder(
                     recordId = recordId,
+                    medicineId = medicineId,
                     medicineName = medicineName,
                     dosage = dosage,
                     scheduledTime = scheduledTime
@@ -103,13 +106,15 @@ class MedicationAlarmReceiver : BroadcastReceiver() {
             recordId: Long,
             medicineName: String,
             dosage: String,
-            scheduledTime: String
+            scheduledTime: String,
+            medicineId: Long
         ): Intent = Intent(context, MedicationAlarmReceiver::class.java).apply {
             this.action = action
             putExtra(EXTRA_RECORD_ID, recordId)
             putExtra(EXTRA_MEDICINE_NAME, medicineName)
             putExtra(EXTRA_DOSAGE, dosage)
             putExtra(EXTRA_SCHEDULED_TIME, scheduledTime)
+            putExtra(EXTRA_MEDICINE_ID, medicineId)
         }
 
         fun createPendingIntent(
@@ -119,6 +124,7 @@ class MedicationAlarmReceiver : BroadcastReceiver() {
             medicineName: String,
             dosage: String,
             scheduledTime: String,
+            medicineId: Long,
             flags: Int = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         ): PendingIntent {
             val intent = createIntent(
@@ -127,7 +133,8 @@ class MedicationAlarmReceiver : BroadcastReceiver() {
                 recordId = recordId,
                 medicineName = medicineName,
                 dosage = dosage,
-                scheduledTime = scheduledTime
+                scheduledTime = scheduledTime,
+                medicineId = medicineId
             )
             return PendingIntent.getBroadcast(
                 context,
@@ -145,6 +152,7 @@ class MedicationAlarmReceiver : BroadcastReceiver() {
                 medicineName = "",
                 dosage = "",
                 scheduledTime = "",
+                medicineId = -1L,
                 action = ACTION_REMIND
             )
             val pendingIntent = PendingIntent.getBroadcast(

@@ -4,6 +4,8 @@ import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import androidx.work.Data
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
@@ -14,11 +16,13 @@ import com.dailydrug.data.notification.NotificationConstants
 import com.dailydrug.data.notification.NotificationConstants.ACTION_REMIND
 import com.dailydrug.data.notification.NotificationConstants.EXTRA_DOSAGE
 import com.dailydrug.data.notification.NotificationConstants.EXTRA_MEDICINE_NAME
+import com.dailydrug.data.notification.NotificationConstants.EXTRA_MEDICINE_ID
 import com.dailydrug.data.notification.NotificationConstants.EXTRA_RECORD_ID
 import com.dailydrug.data.notification.NotificationConstants.EXTRA_SCHEDULED_TIME
 import com.dailydrug.data.notification.NotificationConstants.REMINDER_INTERVAL_MILLIS
 import com.dailydrug.data.notification.NotificationHelper
 import com.dailydrug.data.alarm.MedicationAlarmReceiver
+import com.dailydrug.presentation.widget.TodayMedicationWidgetProvider
 import java.time.Duration
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -48,6 +52,7 @@ class ReminderScheduler(
 
     fun scheduleDoseReminder(
         recordId: Long,
+        medicineId: Long,
         medicineName: String,
         dosage: String,
         scheduledTime: String,
@@ -58,6 +63,7 @@ class ReminderScheduler(
         NotificationHelper(context).ensureChannel()
         scheduleAlarm(
             recordId = recordId,
+            medicineId = medicineId,
             medicineName = medicineName,
             dosage = dosage,
             scheduledTime = scheduledTime,
@@ -75,8 +81,10 @@ class ReminderScheduler(
         val medicineName = originalIntent.getStringExtra(EXTRA_MEDICINE_NAME).orEmpty()
         val dosage = originalIntent.getStringExtra(EXTRA_DOSAGE).orEmpty()
         val scheduledTime = originalIntent.getStringExtra(EXTRA_SCHEDULED_TIME).orEmpty()
+        val medicineId = originalIntent.getLongExtra(EXTRA_MEDICINE_ID, -1L)
         scheduleDoseReminder(
             recordId = recordId,
+            medicineId = medicineId,
             medicineName = medicineName,
             dosage = dosage,
             scheduledTime = scheduledTime,
@@ -87,10 +95,12 @@ class ReminderScheduler(
     fun cancelReminder(recordId: Long) {
         MedicationAlarmReceiver.cancel(context, recordId)
         workManager.cancelUniqueWork(NotificationConstants.REMINDER_WORK_PREFIX + recordId)
+        notifyWidgets()
     }
 
     private fun scheduleAlarm(
         recordId: Long,
+        medicineId: Long,
         medicineName: String,
         dosage: String,
         scheduledTime: String,
@@ -103,7 +113,8 @@ class ReminderScheduler(
             recordId = recordId,
             medicineName = medicineName,
             dosage = dosage,
-            scheduledTime = scheduledTime
+            scheduledTime = scheduledTime,
+            medicineId = medicineId
         )
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -144,5 +155,10 @@ class ReminderScheduler(
             ExistingWorkPolicy.REPLACE,
             request
         )
+        notifyWidgets()
+    }
+
+    fun notifyWidgets() {
+        TodayMedicationWidgetProvider.refreshAll(context)
     }
 }

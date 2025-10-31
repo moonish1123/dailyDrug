@@ -56,6 +56,7 @@ class NotificationHelper(private val context: Context) {
 
     fun showReminder(
         recordId: Long,
+        medicineId: Long,
         medicineName: String,
         dosage: String,
         scheduledTime: String
@@ -63,6 +64,7 @@ class NotificationHelper(private val context: Context) {
         ensureChannel()
         val notification = buildReminderNotification(
             recordId = recordId,
+            medicineId = medicineId,
             medicineName = medicineName,
             dosage = dosage,
             scheduledTime = scheduledTime
@@ -76,6 +78,7 @@ class NotificationHelper(private val context: Context) {
 
     private fun buildReminderNotification(
         recordId: Long,
+        medicineId: Long,
         medicineName: String,
         dosage: String,
         scheduledTime: String
@@ -83,7 +86,7 @@ class NotificationHelper(private val context: Context) {
         val contentIntent = PendingIntent.getActivity(
             context,
             recordId.toInt(),
-            MainActivity.createDetailIntent(context, recordId),
+            MainActivity.createDetailIntent(context, medicineId),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -96,7 +99,8 @@ class NotificationHelper(private val context: Context) {
                 recordId = recordId,
                 medicineName = medicineName,
                 dosage = dosage,
-                scheduledTime = scheduledTime
+                scheduledTime = scheduledTime,
+                medicineId = medicineId
             ),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -110,7 +114,8 @@ class NotificationHelper(private val context: Context) {
                 recordId = recordId,
                 medicineName = medicineName,
                 dosage = dosage,
-                scheduledTime = scheduledTime
+                scheduledTime = scheduledTime,
+                medicineId = medicineId
             ),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -124,7 +129,8 @@ class NotificationHelper(private val context: Context) {
                 recordId = recordId,
                 medicineName = medicineName,
                 dosage = dosage,
-                scheduledTime = scheduledTime
+                scheduledTime = scheduledTime,
+                medicineId = medicineId
             ),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )

@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">DailyDrug</string>
+    <string name="widget_empty_text">오늘 복용할 약이 없습니다.</string>
+    <string name="widget_take_button">복용</string>
 </resources>

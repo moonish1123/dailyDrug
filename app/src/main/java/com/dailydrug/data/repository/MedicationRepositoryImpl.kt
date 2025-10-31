@@ -126,6 +126,7 @@ class MedicationRepositoryImpl @Inject constructor(
             val tuple = recordDao.getScheduledDose(recordId) ?: return@withContext
             reminderScheduler.scheduleDoseReminder(
                 recordId = recordId,
+                medicineId = tuple.medicineId,
                 medicineName = tuple.medicineName,
                 dosage = tuple.medicineDosage,
                 scheduledTime = triggerAt.toLocalTime().format(timeFormatter),
@@ -269,6 +270,7 @@ class MedicationRepositoryImpl @Inject constructor(
         val next = paired.firstOrNull { it.first.isAfter(now) } ?: paired.first()
         reminderScheduler.scheduleDoseReminder(
             recordId = next.second,
+            medicineId = medicine.id,
             medicineName = medicine.name,
             dosage = medicine.dosage,
             scheduledTime = next.first.toLocalTime().format(timeFormatter),

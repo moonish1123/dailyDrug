@@ -34,6 +34,24 @@
         <receiver
             android:name=".data.alarm.MedicationAlarmReceiver"
             android:exported="false" />
+
+        <receiver
+            android:name=".presentation.widget.TodayMedicationWidgetProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.dailydrug.widget.REFRESH" />
+                <action android:name="com.dailydrug.widget.TOGGLE_TAKEN" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/today_medication_widget_info" />
+        </receiver>
+
+        <service
+            android:name=".presentation.widget.TodayMedicationRemoteViewsService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
     </application>
 
 </manifest>
