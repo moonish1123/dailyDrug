@@ -27,15 +27,34 @@ class MedicationReminderWorker @AssistedInject constructor(
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
     override suspend fun doWork(): Result {
+        val startTime = System.currentTimeMillis()
+        val currentTime = java.time.LocalDateTime.now()
         val recordId = inputData.getLong(EXTRA_RECORD_ID, -1L)
+
+        Log.i(TAG, "========================================")
+        Log.i(TAG, "⏰ MedicationReminderWorker started")
+        Log.i(TAG, "RecordId: $recordId")
+        Log.i(TAG, "Current Time: $currentTime")
+
         if (recordId <= 0) {
-            Log.w(TAG, "MedicationReminderWorker missing recordId")
+            Log.e(TAG, "❌ Invalid recordId - Worker failed")
+            Log.i(TAG, "========================================")
             return Result.failure()
         }
 
-        Log.d(TAG, "MedicationReminderWorker scheduling re-alert for recordId=$recordId")
         val dose = medicationRepository.getScheduledDose(recordId)
-            ?: return Result.retry()
+        if (dose == null) {
+            Log.w(TAG, "⚠️ Dose not found in DB - Retrying later")
+            Log.i(TAG, "========================================")
+            return Result.retry()
+        }
+
+        Log.i(TAG, "📋 Dose Information:")
+        Log.i(TAG, "  Medicine: ${dose.medicine.name}")
+        Log.i(TAG, "  Dosage: ${dose.medicine.dosage}")
+        Log.i(TAG, "  Scheduled Time: ${dose.scheduledDateTime.toLocalTime().format(timeFormatter)}")
+        Log.i(TAG, "  Medicine ID: ${dose.medicine.id}")
+
         val fallbackIntent = MedicationAlarmReceiver.createIntent(
             context = applicationContext,
             recordId = recordId,
@@ -44,7 +63,14 @@ class MedicationReminderWorker @AssistedInject constructor(
             scheduledTime = dose.scheduledDateTime.toLocalTime().format(timeFormatter),
             medicineId = dose.medicine.id
         )
+
+        Log.i(TAG, "🔄 Scheduling re-alert via ReminderScheduler")
         reminderScheduler.scheduleRealert(recordId, fallbackIntent)
+
+        val duration = System.currentTimeMillis() - startTime
+        Log.i(TAG, "✅ MedicationReminderWorker completed in ${duration}ms")
+        Log.i(TAG, "========================================")
+
         return Result.success()
     }
 

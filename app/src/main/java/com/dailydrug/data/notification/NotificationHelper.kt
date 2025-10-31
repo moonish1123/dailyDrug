@@ -32,6 +32,12 @@ class NotificationHelper(private val context: Context) {
     private val notificationManager: NotificationManagerCompat
         get() = NotificationManagerCompat.from(context)
 
+    companion object {
+        private const val TAG = "NotificationHelper"
+
+        fun Context.ensureNotificationChannel() = NotificationHelper(this).ensureChannel()
+    }
+
     fun ensureChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val audioAttributes = android.media.AudioAttributes.Builder()
@@ -61,6 +67,15 @@ class NotificationHelper(private val context: Context) {
         dosage: String,
         scheduledTime: String
     ) {
+        val currentTime = java.time.LocalTime.now()
+        android.util.Log.i(TAG, "========================================")
+        android.util.Log.i(TAG, "🔔 Showing notification")
+        android.util.Log.i(TAG, "RecordId: $recordId")
+        android.util.Log.i(TAG, "Medicine: $medicineName ($dosage)")
+        android.util.Log.i(TAG, "Scheduled Time: $scheduledTime")
+        android.util.Log.i(TAG, "Display Time: $currentTime")
+        android.util.Log.i(TAG, "NotificationId: ${notificationId(recordId)}")
+
         ensureChannel()
         val notification = buildReminderNotification(
             recordId = recordId,
@@ -70,6 +85,9 @@ class NotificationHelper(private val context: Context) {
             scheduledTime = scheduledTime
         )
         notificationManager.notify(notificationId(recordId), notification)
+
+        android.util.Log.i(TAG, "✅ Notification displayed successfully")
+        android.util.Log.i(TAG, "========================================")
     }
 
     fun dismissReminder(recordId: Long) {
@@ -184,8 +202,4 @@ class NotificationHelper(private val context: Context) {
 
     private fun notificationId(recordId: Long): Int =
         ALERT_NOTIFICATION_ID_BASE + (recordId % Int.MAX_VALUE).toInt()
-
-    companion object {
-        fun Context.ensureNotificationChannel() = NotificationHelper(this).ensureChannel()
-    }
 }

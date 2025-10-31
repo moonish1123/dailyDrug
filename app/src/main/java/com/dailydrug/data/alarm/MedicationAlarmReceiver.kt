@@ -35,9 +35,16 @@ class MedicationAlarmReceiver : BroadcastReceiver() {
     lateinit var reminderScheduler: ReminderScheduler
 
     override fun onReceive(context: Context, intent: Intent) {
+        val receivedTime = java.time.LocalDateTime.now()
         val recordId = intent.getLongExtra(EXTRA_RECORD_ID, -1L)
+
+        Log.i(TAG, "========================================")
+        Log.i(TAG, "🔔 AlarmReceiver triggered at: $receivedTime")
+        Log.i(TAG, "Action: ${intent.action}")
+        Log.i(TAG, "RecordId: $recordId")
+
         if (recordId <= 0) {
-            Log.w(TAG, "Invalid recordId received in alarm intent")
+            Log.e(TAG, "❌ Invalid recordId received in alarm intent")
             return
         }
 
@@ -46,8 +53,13 @@ class MedicationAlarmReceiver : BroadcastReceiver() {
         val scheduledTime = intent.getStringExtra(EXTRA_SCHEDULED_TIME).orEmpty()
         val medicineId = intent.getLongExtra(EXTRA_MEDICINE_ID, -1L)
 
+        Log.i(TAG, "Medicine: $medicineName ($dosage)")
+        Log.i(TAG, "Scheduled Time: $scheduledTime")
+        Log.i(TAG, "Current Time: ${receivedTime.toLocalTime()}")
+
         when (intent.action) {
             ACTION_REMIND -> {
+                Log.i(TAG, "📲 ACTION_REMIND - Showing notification and scheduling re-alert")
                 NotificationHelper(context).showReminder(
                     recordId = recordId,
                     medicineId = medicineId,
@@ -56,23 +68,26 @@ class MedicationAlarmReceiver : BroadcastReceiver() {
                     scheduledTime = scheduledTime
                 )
                 reminderScheduler.scheduleRealert(recordId, intent)
+                Log.i(TAG, "✅ Notification displayed and re-alert scheduled")
             }
             ACTION_SNOOZE -> {
+                Log.i(TAG, "⏰ ACTION_SNOOZE - Scheduling 1-hour snooze")
                 reminderScheduler.scheduleRealert(recordId, intent)
-                Log.d(TAG, "Snooze requested for recordId=$recordId")
+                Log.i(TAG, "✅ Snooze scheduled for recordId=$recordId")
             }
             ACTION_TAKE -> {
-                Log.d(TAG, "Marked as taken via notification action for recordId=$recordId")
+                Log.i(TAG, "✅ ACTION_TAKE - Marking as taken via notification")
                 handleTakeAction(recordId, context, dismissNotification = true)
             }
             ACTION_TAKE_TODAY -> {
-                Log.d(TAG, "Marked as taken (오늘 약 먹음) for recordId=$recordId")
+                Log.i(TAG, "✅ ACTION_TAKE_TODAY - Marking all today's doses as taken")
                 handleTakeAction(recordId, context, dismissNotification = true)
             }
             else -> {
-                Log.w(TAG, "Unknown action ${intent.action}")
+                Log.w(TAG, "⚠️ Unknown action: ${intent.action}")
             }
         }
+        Log.i(TAG, "========================================")
     }
 
     private fun handleTakeAction(recordId: Long, context: Context, dismissNotification: Boolean) {
