@@ -4,6 +4,7 @@ import com.dailydrug.domain.model.CreateScheduleParams
 import com.dailydrug.domain.model.ScheduledDose
 import com.dailydrug.domain.model.MedicineDetail
 import com.dailydrug.domain.model.MedicationRecord
+import com.dailydrug.domain.model.ScheduleDetail
 import java.time.LocalDate
 import java.time.LocalDateTime
 import kotlinx.coroutines.flow.Flow
@@ -33,6 +34,16 @@ interface MedicationRepository {
      * Creates or updates a medicine schedule and returns the new schedule id.
      */
     suspend fun createSchedule(params: CreateScheduleParams): Long
+
+    /**
+     * Remove a schedule and any future reminders/records associated with it.
+     */
+    suspend fun deleteSchedule(scheduleId: Long)
+
+    /**
+     * Fetch a schedule with its associated medicine for edit forms.
+     */
+    suspend fun getScheduleDetail(scheduleId: Long): ScheduleDetail?
 
     /**
      * Fetch a single scheduled dose (used for notifications).

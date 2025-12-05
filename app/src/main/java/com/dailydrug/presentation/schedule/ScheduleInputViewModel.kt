@@ -1,10 +1,14 @@
 package com.dailydrug.presentation.schedule
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailydrug.domain.model.CreateScheduleParams
 import com.dailydrug.domain.usecase.CalculateSchedulePatternsUseCase
 import com.dailydrug.domain.usecase.CreateScheduleUseCase
+import com.dailydrug.domain.usecase.DeleteScheduleUseCase
+import com.dailydrug.domain.usecase.GetScheduleDetailUseCase
+import com.dailydrug.presentation.navigation.AppDestination
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -19,15 +23,84 @@ import kotlinx.coroutines.launch
 
 @HiltViewModel
 class ScheduleInputViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
     private val createScheduleUseCase: CreateScheduleUseCase,
-    private val calculateSchedulePatternsUseCase: CalculateSchedulePatternsUseCase
+    private val calculateSchedulePatternsUseCase: CalculateSchedulePatternsUseCase,
+    private val getScheduleDetailUseCase: GetScheduleDetailUseCase,
+    private val deleteScheduleUseCase: DeleteScheduleUseCase
 ) : ViewModel() {
+
+    private val scheduleIdArg: Long? = savedStateHandle.get<Long>(AppDestination.ScheduleInput.ARG_SCHEDULE_ID)?.takeIf { it > 0 }
+    private val medicineIdArg: Long? = savedStateHandle.get<Long>(AppDestination.ScheduleInput.ARG_MEDICINE_ID)?.takeIf { it > 0 }
 
     private val _uiState = MutableStateFlow(ScheduleInputUiState())
     val uiState: StateFlow<ScheduleInputUiState> = _uiState
 
     private val _events = MutableSharedFlow<ScheduleInputEvent>()
     val events = _events.asSharedFlow()
+
+    init {
+        if (scheduleIdArg != null) {
+            loadSchedule(scheduleIdArg)
+        } else if (medicineIdArg != null) {
+            _uiState.update { it.copy(medicineId = medicineIdArg) }
+        }
+    }
+
+    fun deleteSchedule() {
+        val targetId = _uiState.value.scheduleId
+        if (targetId == null) {
+            viewModelScope.launch { _events.emit(ScheduleInputEvent.ShowMessage("삭제할 스케줄이 없습니다.")) }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDeleting = true) }
+            val result = runCatching { deleteScheduleUseCase(targetId) }
+            _uiState.update { it.copy(isDeleting = false) }
+            result.onSuccess {
+                _events.emit(ScheduleInputEvent.ShowMessage("스케줄을 삭제했습니다."))
+                _events.emit(ScheduleInputEvent.Deleted)
+            }.onFailure {
+                _events.emit(ScheduleInputEvent.ShowMessage("스케줄 삭제에 실패했습니다."))
+            }
+        }
+    }
+
+    private fun loadSchedule(scheduleId: Long) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            runCatching { getScheduleDetailUseCase(scheduleId) }
+                .onSuccess { detail ->
+                    if (detail == null) {
+                        _events.emit(ScheduleInputEvent.ShowMessage("스케줄 정보를 불러올 수 없습니다."))
+                        _uiState.update { it.copy(isLoading = false) }
+                    } else {
+                        _uiState.update {
+                            it.copy(
+                                medicineId = detail.medicine.id,
+                                scheduleId = detail.schedule.id,
+                                medicineName = detail.medicine.name,
+                                dosage = detail.medicine.dosage,
+                                memo = detail.medicine.memo,
+                                selectedColor = detail.medicine.color,
+                                startDate = detail.schedule.startDate,
+                                endDate = detail.schedule.endDate,
+                                timeSlots = detail.schedule.timeSlots.sorted(),
+                                takeDays = detail.schedule.takeDays,
+                                restDays = detail.schedule.restDays,
+                                isEditing = true,
+                                isLoading = false
+                            )
+                        }
+                        recalcPreview()
+                    }
+                }
+                .onFailure {
+                    _events.emit(ScheduleInputEvent.ShowMessage("스케줄 정보를 불러올 수 없습니다."))
+                    _uiState.update { it.copy(isLoading = false) }
+                }
+        }
+    }
 
     fun updateMedicineName(value: String) {
         _uiState.update { it.copy(medicineName = value) }
@@ -94,7 +167,8 @@ class ScheduleInputViewModel @Inject constructor(
             _uiState.update { it.copy(isSaving = true) }
             runCatching {
                 val params = CreateScheduleParams(
-                    medicineId = null,
+                    scheduleId = state.scheduleId,
+                    medicineId = state.medicineId,
                     name = state.medicineName.trim(),
                     dosage = state.dosage.trim(),
                     color = state.selectedColor,
@@ -116,6 +190,7 @@ class ScheduleInputViewModel @Inject constructor(
 
     private fun recalcPreview() {
         val state = _uiState.value
+        if (state.isLoading) return
         if (state.timeSlots.isEmpty()) {
             _uiState.update { it.copy(preview = emptyList()) }
             return
@@ -146,10 +221,13 @@ class ScheduleInputViewModel @Inject constructor(
 
 sealed interface ScheduleInputEvent {
     data object Success : ScheduleInputEvent
+    data object Deleted : ScheduleInputEvent
     data class ShowMessage(val message: String) : ScheduleInputEvent
 }
 
 data class ScheduleInputUiState(
+    val medicineId: Long? = null,
+    val scheduleId: Long? = null,
     val medicineName: String = "",
     val dosage: String = "",
     val memo: String = "",
@@ -160,7 +238,10 @@ data class ScheduleInputUiState(
     val takeDays: Int = 1,
     val restDays: Int = 0,
     val preview: List<LocalDateTime> = emptyList(),
-    val isSaving: Boolean = false
+    val isSaving: Boolean = false,
+    val isLoading: Boolean = false,
+    val isDeleting: Boolean = false,
+    val isEditing: Boolean = false
 ) {
     companion object {
         val DEFAULT_COLORS = listOf(

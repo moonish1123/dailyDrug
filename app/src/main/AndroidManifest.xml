@@ -8,6 +8,8 @@
     <uses-permission
         android:name="android.permission.SCHEDULE_EXACT_ALARM"
         tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:name=".DailyDrugApplication"
@@ -19,6 +21,15 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.DailyDrug">
+        <activity
+            android:name=".presentation.alarm.MedicationAlarmActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.DailyDrug"
+            tools:targetApi="o_mr1" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -42,6 +53,7 @@
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="com.dailydrug.widget.REFRESH" />
                 <action android:name="com.dailydrug.widget.TOGGLE_TAKEN" />
+                <action android:name="com.dailydrug.widget.OPEN_APP" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -52,6 +64,16 @@
             android:name=".presentation.widget.TodayMedicationRemoteViewsService"
             android:exported="false"
             android:permission="android.permission.BIND_REMOTEVIEWS" />
+
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="remove">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.work.WorkManagerInitializer" />
+        </provider>
     </application>
 
 </manifest>

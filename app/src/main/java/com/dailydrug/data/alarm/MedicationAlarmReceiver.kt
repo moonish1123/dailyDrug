@@ -11,6 +11,7 @@ import com.dailydrug.data.notification.NotificationConstants.ACTION_REMIND
 import com.dailydrug.data.notification.NotificationConstants.ACTION_SNOOZE
 import com.dailydrug.data.notification.NotificationConstants.ACTION_TAKE
 import com.dailydrug.data.notification.NotificationConstants.ACTION_TAKE_TODAY
+import com.dailydrug.data.notification.NotificationConstants.ACTION_DISMISS_ALARM_UI
 import com.dailydrug.data.notification.NotificationConstants.EXTRA_DOSAGE
 import com.dailydrug.data.notification.NotificationConstants.EXTRA_MEDICINE_NAME
 import com.dailydrug.data.notification.NotificationConstants.EXTRA_MEDICINE_ID
@@ -19,6 +20,7 @@ import com.dailydrug.data.notification.NotificationConstants.EXTRA_SCHEDULED_TIM
 import com.dailydrug.data.notification.NotificationHelper
 import com.dailydrug.data.worker.ReminderScheduler
 import com.dailydrug.domain.usecase.RecordMedicationUseCase
+import com.dailydrug.presentation.alarm.MedicationAlarmActivity
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -67,21 +69,26 @@ class MedicationAlarmReceiver : BroadcastReceiver() {
                     dosage = dosage,
                     scheduledTime = scheduledTime
                 )
+                // Activity will be launched via FullScreenIntent in NotificationHelper if screen is locked
                 reminderScheduler.scheduleRealert(recordId, intent)
                 Log.i(TAG, "✅ Notification displayed and re-alert scheduled")
             }
             ACTION_SNOOZE -> {
                 Log.i(TAG, "⏰ ACTION_SNOOZE - Scheduling 1-hour snooze")
+                NotificationHelper(context).dismissReminder(recordId)
                 reminderScheduler.scheduleRealert(recordId, intent)
+                sendDismissBroadcast(context, recordId)
                 Log.i(TAG, "✅ Snooze scheduled for recordId=$recordId")
             }
             ACTION_TAKE -> {
                 Log.i(TAG, "✅ ACTION_TAKE - Marking as taken via notification")
                 handleTakeAction(recordId, context, dismissNotification = true)
+                sendDismissBroadcast(context, recordId)
             }
             ACTION_TAKE_TODAY -> {
                 Log.i(TAG, "✅ ACTION_TAKE_TODAY - Marking all today's doses as taken")
                 handleTakeAction(recordId, context, dismissNotification = true)
+                sendDismissBroadcast(context, recordId)
             }
             else -> {
                 Log.w(TAG, "⚠️ Unknown action: ${intent.action}")
@@ -110,6 +117,12 @@ class MedicationAlarmReceiver : BroadcastReceiver() {
                 pendingResult.finish()
             }
         }
+    }
+
+    private fun sendDismissBroadcast(context: Context, recordId: Long) {
+        context.sendBroadcast(
+            Intent(ACTION_DISMISS_ALARM_UI).putExtra(EXTRA_RECORD_ID, recordId)
+        )
     }
 
     companion object {

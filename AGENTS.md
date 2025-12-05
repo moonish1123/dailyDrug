@@ -1,3 +1,7 @@
+# 전체 가장 최우선 가이드 
+한글로 대답한다. 
+모든 대답은 대답하기전 검증을 거친다.
+
 # Repository Guidelines
 
 ## Project Structure & Module Organization

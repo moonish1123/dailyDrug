@@ -21,3 +21,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "DailyDrug"
 include(":app")
+include(":networkmodule")
+include(":llmmodule")
+include(":ocrmodule")

@@ -7,20 +7,24 @@ import com.dailydrug.domain.model.MedicineDetail
 import com.dailydrug.domain.model.MedicationRecord
 import com.dailydrug.domain.model.MedicationStatus
 import com.dailydrug.domain.usecase.ObserveMedicineDetailUseCase
+import com.dailydrug.domain.usecase.DeleteScheduleUseCase
 import com.dailydrug.presentation.navigation.AppDestination
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @HiltViewModel
 class MedicineDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val observeMedicineDetailUseCase: ObserveMedicineDetailUseCase
+    private val observeMedicineDetailUseCase: ObserveMedicineDetailUseCase,
+    private val deleteScheduleUseCase: DeleteScheduleUseCase
 ) : ViewModel() {
 
     private val medicineId: Long = savedStateHandle.get<Long>(AppDestination.MedicineDetail.ARG_MEDICINE_ID) ?: -1L
@@ -28,11 +32,26 @@ class MedicineDetailViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(MedicineDetailUiState())
     val uiState: StateFlow<MedicineDetailUiState> = _uiState
 
+    private val _events = MutableSharedFlow<MedicineDetailEvent>()
+    val events = _events.asSharedFlow()
+
     init {
         if (medicineId <= 0) {
             _uiState.value = MedicineDetailUiState(errorMessage = "약 정보를 찾을 수 없습니다.")
         } else {
             observeDetail()
+        }
+    }
+
+    fun deleteSchedule(scheduleId: Long) {
+        if (scheduleId <= 0) {
+            viewModelScope.launch { _events.emit(MedicineDetailEvent.ShowMessage("삭제할 스케줄을 찾을 수 없습니다.")) }
+            return
+        }
+        viewModelScope.launch {
+            runCatching { deleteScheduleUseCase(scheduleId) }
+                .onSuccess { _events.emit(MedicineDetailEvent.ShowMessage("스케줄을 삭제했습니다.")) }
+                .onFailure { _events.emit(MedicineDetailEvent.ShowMessage("스케줄 삭제에 실패했습니다.")) }
         }
     }
 
@@ -149,6 +168,10 @@ data class HistoryItem(
 )
 
 enum class HistoryStatus { TAKEN, MISSED, SKIPPED }
+
+sealed interface MedicineDetailEvent {
+    data class ShowMessage(val message: String) : MedicineDetailEvent
+}
 
 private fun com.dailydrug.domain.model.MedicationSchedule.toUi(): ScheduleUiModel {
     val periodText = if (endDate != null) {

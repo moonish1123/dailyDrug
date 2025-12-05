@@ -14,13 +14,15 @@ import com.dailydrug.presentation.permission.NotificationPermissionRequester
 @Composable
 fun DailyDrugApp(
     targetMedicineId: Long? = null,
-    onNavigationConsumed: () -> Unit = {}
+    onNavigationConsumed: () -> Unit = {},
+    onFinish: () -> Unit = {}
 ) {
     val navController = rememberNavController()
     Scaffold { innerPadding ->
         NotificationPermissionRequester()
         AppNavHost(
             navController = navController,
+            onFinish = onFinish,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)

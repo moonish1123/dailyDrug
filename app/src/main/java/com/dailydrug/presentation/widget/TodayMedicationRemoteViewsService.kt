@@ -56,15 +56,27 @@ private class TodayMedicationRemoteViewsFactory(
 
     override fun getViewAt(position: Int): RemoteViews {
         val item = items[position]
+        android.util.Log.d(TAG, "📋 Widget: Creating view for position=$position, recordId=${item.recordId}, medicine=${item.medicine.name}")
+
         val views = RemoteViews(context.packageName, R.layout.widget_today_medication_item)
         views.setTextViewText(R.id.widget_item_medicine, item.medicine.name)
         val scheduleText = "${item.medicine.dosage} • ${item.scheduledDateTime.toLocalTime().format(timeFormatter)}"
         views.setTextViewText(R.id.widget_item_schedule, scheduleText)
-        views.setOnClickFillInIntent(
-            R.id.widget_item_take_button,
-            TodayMedicationWidgetProvider.createFillInIntent(item.recordId)
-        )
+        views.setInt(R.id.widget_item_border, "setColorFilter", item.medicine.color)
+
+        val takeIntent = TodayMedicationWidgetProvider.createToggleFillInIntent(context, item.recordId)
+        android.util.Log.d(TAG, "🔘 Widget: Setting take button fillInIntent - action=${takeIntent.action}, recordId=${item.recordId}")
+        views.setOnClickFillInIntent(R.id.widget_item_take_button, takeIntent)
+
+        val openIntent = TodayMedicationWidgetProvider.createOpenAppFillInIntent(context)
+        android.util.Log.d(TAG, "🔘 Widget: Setting root fillInIntent - action=${openIntent.action}")
+        views.setOnClickFillInIntent(R.id.widget_item_root, openIntent)
+
         return views
+    }
+
+    companion object {
+        private const val TAG = "WidgetRemoteViews"
     }
 
     override fun getLoadingView(): RemoteViews? = null

@@ -15,8 +15,9 @@ import com.dailydrug.domain.model.Medicine
 import com.dailydrug.domain.model.MedicineDetail
 import com.dailydrug.domain.model.MedicationRecord
 import com.dailydrug.domain.model.MedicationStatus
-import com.dailydrug.domain.model.ScheduledDose
 import com.dailydrug.domain.model.MedicationSchedule
+import com.dailydrug.domain.model.ScheduledDose
+import com.dailydrug.domain.model.ScheduleDetail
 import com.dailydrug.domain.repository.MedicationRepository
 import java.time.Clock
 import java.time.Instant
@@ -81,31 +82,67 @@ class MedicationRepositoryImpl @Inject constructor(
     override suspend fun createSchedule(params: CreateScheduleParams): Long = withContext(ioDispatcher) {
         database.withTransaction {
             val medicineId = upsertMedicine(params)
-            val scheduleEntity = MedicationScheduleEntity(
+            val existingSchedule = params.scheduleId?.let { scheduleDao.getById(it) }
+            val targetSchedule = MedicationScheduleEntity(
+                id = existingSchedule?.id ?: 0L,
                 medicineId = medicineId,
                 startDate = params.startDate,
                 endDate = params.endDate,
                 timeSlots = params.timeSlots,
                 takeDays = params.takeDays,
                 restDays = params.restDays,
-                isActive = true
+                isActive = existingSchedule?.isActive ?: true
             )
-            val scheduleId = scheduleDao.insert(scheduleEntity)
-            val insertedSchedule = scheduleEntity.copy(id = scheduleId)
+            val medicine = medicineDao.getById(medicineId) ?: return@withTransaction existingSchedule?.id ?: 0L
             val horizon = endOfNextMonth(LocalDate.now(clock))
-            val newlyInserted = ensureOccurrencesForSchedule(insertedSchedule, horizon)
-            if (newlyInserted.isNotEmpty()) {
-                val recordIds = newlyInserted.map { it.first }
-                val occurrences = newlyInserted.map { it.second }
-                scheduleInitialReminder(
-                    recordIds = recordIds,
-                    occurrences = occurrences,
-                    medicine = medicineDao.getById(medicineId) ?: return@withTransaction scheduleId
+
+            val scheduleId = if (existingSchedule == null) {
+                val newId = scheduleDao.insert(targetSchedule.copy(id = 0L))
+                val insertedSchedule = targetSchedule.copy(id = newId)
+                val newlyInserted = ensureOccurrencesForSchedule(insertedSchedule, horizon)
+                if (newlyInserted.isNotEmpty()) {
+                    val recordIds = newlyInserted.map { it.first }
+                    val occurrences = newlyInserted.map { it.second }
+                    scheduleInitialReminder(
+                        recordIds = recordIds,
+                        occurrences = occurrences,
+                        medicine = medicine
+                    )
+                }
+                newId
+            } else {
+                scheduleDao.update(targetSchedule)
+                refreshScheduleOccurrences(
+                    schedule = targetSchedule,
+                    medicine = medicine,
+                    horizon = horizon
                 )
+                targetSchedule.id
             }
             reminderScheduler.scheduleDailyRefresh()
             scheduleId
         }
+    }
+
+    override suspend fun deleteSchedule(scheduleId: Long) = withContext(ioDispatcher) {
+        database.withTransaction {
+            val schedule = scheduleDao.getById(scheduleId) ?: return@withTransaction
+            val recordIds = recordDao.getRecordIds(scheduleId)
+            recordIds.forEach { reminderScheduler.cancelReminder(it) }
+            recordDao.deleteBySchedule(scheduleId)
+            scheduleDao.deleteById(scheduleId)
+            reminderScheduler.scheduleDailyRefresh()
+        }
+        reminderScheduler.notifyWidgets()
+    }
+
+    override suspend fun getScheduleDetail(scheduleId: Long) = withContext(ioDispatcher) {
+        val schedule = scheduleDao.getById(scheduleId) ?: return@withContext null
+        val medicine = medicineDao.getById(schedule.medicineId) ?: return@withContext null
+        ScheduleDetail(
+            medicine = medicine.toDomain(),
+            schedule = schedule.toDomain()
+        )
     }
 
     override suspend fun ensureOccurrencesUpTo(date: LocalDate) = withContext(ioDispatcher) {
@@ -226,6 +263,29 @@ class MedicationRepositoryImpl @Inject constructor(
         return recordIds.zip(occurrences)
     }
 
+    private suspend fun refreshScheduleOccurrences(
+        schedule: MedicationScheduleEntity,
+        medicine: MedicineEntity,
+        horizon: LocalDate
+    ) {
+        if (schedule.id == 0L) return
+        val anchorDate = minOf(LocalDate.now(clock), schedule.startDate)
+        val fromDateTime = anchorDate.atStartOfDay()
+        val affectedRecordIds = recordDao.getRecordIdsFrom(schedule.id, fromDateTime)
+        affectedRecordIds.forEach { reminderScheduler.cancelReminder(it) }
+        recordDao.deleteRecordsFrom(schedule.id, fromDateTime)
+        val newlyInserted = ensureOccurrencesForSchedule(schedule, horizon)
+        if (newlyInserted.isNotEmpty()) {
+            val recordIds = newlyInserted.map { it.first }
+            val occurrences = newlyInserted.map { it.second }
+            scheduleInitialReminder(
+                recordIds = recordIds,
+                occurrences = occurrences,
+                medicine = medicine
+            )
+        }
+    }
+
     private fun generateOccurrences(
         schedule: MedicationScheduleEntity,
         startDate: LocalDate,
@@ -267,15 +327,20 @@ class MedicationRepositoryImpl @Inject constructor(
         if (recordIds.isEmpty()) return
         val now = LocalDateTime.now(clock)
         val paired = occurrences.zip(recordIds)
-        val next = paired.firstOrNull { it.first.isAfter(now) } ?: paired.first()
-        reminderScheduler.scheduleDoseReminder(
-            recordId = next.second,
-            medicineId = medicine.id,
-            medicineName = medicine.name,
-            dosage = medicine.dosage,
-            scheduledTime = next.first.toLocalTime().format(timeFormatter),
-            triggerAt = next.first
-        )
+        
+        // 미래의 모든 알림을 예약 (하루에 여러 번 복용하는 경우 대응)
+        paired
+            .filter { it.first.isAfter(now) }
+            .forEach { (occurrence, recordId) ->
+                reminderScheduler.scheduleDoseReminder(
+                    recordId = recordId,
+                    medicineId = medicine.id,
+                    medicineName = medicine.name,
+                    dosage = medicine.dosage,
+                    scheduledTime = occurrence.toLocalTime().format(timeFormatter),
+                    triggerAt = occurrence
+                )
+            }
     }
 
     private fun ScheduledDoseTuple.toDomain(): ScheduledDose {

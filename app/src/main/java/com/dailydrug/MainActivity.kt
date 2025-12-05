@@ -30,7 +30,8 @@ class MainActivity : ComponentActivity() {
                     targetMedicineId = navigateRequest,
                     onNavigationConsumed = {
                         detailNavigationRequests.value = null
-                    }
+                    },
+                    onFinish = { finish() }
                 )
             }
         }

@@ -3,7 +3,9 @@ package com.dailydrug.di
 import com.dailydrug.domain.repository.MedicationRepository
 import com.dailydrug.domain.usecase.CalculateSchedulePatternsUseCase
 import com.dailydrug.domain.usecase.CreateScheduleUseCase
+import com.dailydrug.domain.usecase.DeleteScheduleUseCase
 import com.dailydrug.domain.usecase.EnsureScheduleOccurrencesUseCase
+import com.dailydrug.domain.usecase.GetScheduleDetailUseCase
 import com.dailydrug.domain.usecase.GetTodayMedicationsUseCase
 import com.dailydrug.domain.usecase.RecordMedicationUseCase
 import com.dailydrug.domain.usecase.ScheduleNotificationUseCase
@@ -32,6 +34,14 @@ object UseCaseModule {
     @Provides
     fun provideCreateScheduleUseCase(repository: MedicationRepository): CreateScheduleUseCase =
         CreateScheduleUseCase(repository)
+
+    @Provides
+    fun provideGetScheduleDetailUseCase(repository: MedicationRepository): GetScheduleDetailUseCase =
+        GetScheduleDetailUseCase(repository)
+
+    @Provides
+    fun provideDeleteScheduleUseCase(repository: MedicationRepository): DeleteScheduleUseCase =
+        DeleteScheduleUseCase(repository)
 
     @Provides
     fun provideScheduleNotificationUseCase(repository: MedicationRepository): ScheduleNotificationUseCase =

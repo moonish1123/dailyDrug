@@ -19,6 +19,9 @@ interface MedicationScheduleDao {
     @Query("SELECT * FROM medication_schedules WHERE id = :id")
     suspend fun getById(id: Long): MedicationScheduleEntity?
 
+    @Query("DELETE FROM medication_schedules WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
     @Query("SELECT * FROM medication_schedules WHERE isActive = 1")
     fun observeActive(): Flow<List<MedicationScheduleEntity>>
 

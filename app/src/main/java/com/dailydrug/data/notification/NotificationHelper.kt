@@ -1,5 +1,6 @@
 package com.dailydrug.data.notification
 
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -11,7 +12,6 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.os.bundleOf
-import com.dailydrug.MainActivity
 import com.dailydrug.R
 import com.dailydrug.data.notification.NotificationConstants.ACTION_TAKE
 import com.dailydrug.data.notification.NotificationConstants.ACTION_SNOOZE
@@ -25,7 +25,9 @@ import com.dailydrug.data.notification.NotificationConstants.EXTRA_DOSAGE
 import com.dailydrug.data.notification.NotificationConstants.EXTRA_MEDICINE_NAME
 import com.dailydrug.data.notification.NotificationConstants.EXTRA_RECORD_ID
 import com.dailydrug.data.notification.NotificationConstants.EXTRA_SCHEDULED_TIME
+import com.dailydrug.data.notification.NotificationConstants.ACTION_DISMISS_ALARM_UI
 import com.dailydrug.data.alarm.MedicationAlarmReceiver
+import com.dailydrug.presentation.alarm.MedicationAlarmActivity
 
 class NotificationHelper(private val context: Context) {
 
@@ -45,6 +47,9 @@ class NotificationHelper(private val context: Context) {
                 .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_EVENT)
                 .build()
 
+            val defaultSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            val vibrationPattern = longArrayOf(0L, 400L, 200L, 400L)
+
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 CHANNEL_NAME,
@@ -53,10 +58,27 @@ class NotificationHelper(private val context: Context) {
                 description = CHANNEL_DESCRIPTION
                 enableLights(true)
                 enableVibration(true)
-                setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION), audioAttributes)
+                this.vibrationPattern = vibrationPattern
+                setSound(
+                    defaultSound,
+                    audioAttributes
+                )
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
             val manager = context.getSystemService(NotificationManager::class.java)
-            manager?.createNotificationChannel(channel)
+            val existingChannel = manager?.getNotificationChannel(CHANNEL_ID)
+            if (existingChannel == null) {
+                manager?.createNotificationChannel(channel)
+            } else {
+                val needsUpdate =
+                    existingChannel.importance < NotificationManager.IMPORTANCE_HIGH ||
+                        existingChannel.vibrationPattern?.contentEquals(vibrationPattern) == false ||
+                        existingChannel.sound != defaultSound
+                if (needsUpdate) {
+                    manager?.deleteNotificationChannel(CHANNEL_ID)
+                    manager?.createNotificationChannel(channel)
+                }
+            }
         }
     }
 
@@ -77,6 +99,13 @@ class NotificationHelper(private val context: Context) {
         android.util.Log.i(TAG, "NotificationId: ${notificationId(recordId)}")
 
         ensureChannel()
+
+        // Check notification permission
+        if (!notificationManager.areNotificationsEnabled()) {
+            android.util.Log.w(TAG, "⚠️ Notifications are disabled by user")
+            return
+        }
+
         val notification = buildReminderNotification(
             recordId = recordId,
             medicineId = medicineId,
@@ -84,6 +113,7 @@ class NotificationHelper(private val context: Context) {
             dosage = dosage,
             scheduledTime = scheduledTime
         )
+        @SuppressLint("MissingPermission") // Permission checked via areNotificationsEnabled()
         notificationManager.notify(notificationId(recordId), notification)
 
         android.util.Log.i(TAG, "✅ Notification displayed successfully")
@@ -92,6 +122,9 @@ class NotificationHelper(private val context: Context) {
 
     fun dismissReminder(recordId: Long) {
         notificationManager.cancel(notificationId(recordId))
+        context.sendBroadcast(
+            Intent(ACTION_DISMISS_ALARM_UI).putExtra(EXTRA_RECORD_ID, recordId)
+        )
     }
 
     private fun buildReminderNotification(
@@ -104,7 +137,14 @@ class NotificationHelper(private val context: Context) {
         val contentIntent = PendingIntent.getActivity(
             context,
             recordId.toInt(),
-            MainActivity.createDetailIntent(context, medicineId),
+            MedicationAlarmActivity.createIntent(
+                context = context,
+                recordId = recordId,
+                medicineId = medicineId,
+                medicineName = medicineName,
+                dosage = dosage,
+                scheduledTime = scheduledTime
+            ),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -153,6 +193,9 @@ class NotificationHelper(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val defaultSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        val vibrationPattern = longArrayOf(0L, 400L, 200L, 400L)
+
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("$medicineName 복용 시간입니다")
@@ -162,6 +205,9 @@ class NotificationHelper(private val context: Context) {
                     .bigText("$dosage 복용 예정 ($scheduledTime)\n복용 완료 시 바로 표시해주세요.")
             )
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setSound(defaultSound)
+            .setVibrate(vibrationPattern)
             .setAutoCancel(false)
             .setOngoing(true)
             .setContentIntent(contentIntent)
@@ -186,8 +232,23 @@ class NotificationHelper(private val context: Context) {
                     takeIntent
                 ).build()
             )
-            .setFullScreenIntent(contentIntent, true)
-            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setFullScreenIntent(
+                PendingIntent.getActivity(
+                    context,
+                    ("full_screen_$recordId").hashCode(),
+                    MedicationAlarmActivity.createIntent(
+                        context = context,
+                        recordId = recordId,
+                        medicineId = medicineId,
+                        medicineName = medicineName,
+                        dosage = dosage,
+                        scheduledTime = scheduledTime
+                    ),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                ),
+                true
+            )
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .addExtras(
                 androidx.core.os.bundleOf(

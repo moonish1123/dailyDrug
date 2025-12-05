@@ -13,3 +13,5 @@
 .externalNativeBuild
 .cxx
 local.properties
+/인증서.file.txt
+/ocr_module.md

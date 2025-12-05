@@ -7,7 +7,9 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.dailydrug.data.alarm.MedicationAlarmReceiver
 import com.dailydrug.data.notification.NotificationConstants.EXTRA_RECORD_ID
+import com.dailydrug.data.notification.NotificationHelper
 import com.dailydrug.domain.repository.MedicationRepository
+import com.dailydrug.domain.model.MedicationStatus
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.time.format.DateTimeFormatter
@@ -49,11 +51,26 @@ class MedicationReminderWorker @AssistedInject constructor(
             return Result.retry()
         }
 
+        if (dose.status != MedicationStatus.PENDING) {
+            Log.i(TAG, "✅ Dose already handled (status=${dose.status}) - cancelling reminders")
+            reminderScheduler.cancelReminder(recordId)
+            Log.i(TAG, "========================================")
+            return Result.success()
+        }
+
         Log.i(TAG, "📋 Dose Information:")
         Log.i(TAG, "  Medicine: ${dose.medicine.name}")
         Log.i(TAG, "  Dosage: ${dose.medicine.dosage}")
         Log.i(TAG, "  Scheduled Time: ${dose.scheduledDateTime.toLocalTime().format(timeFormatter)}")
         Log.i(TAG, "  Medicine ID: ${dose.medicine.id}")
+
+        NotificationHelper(applicationContext).showReminder(
+            recordId = recordId,
+            medicineId = dose.medicine.id,
+            medicineName = dose.medicine.name,
+            dosage = dose.medicine.dosage,
+            scheduledTime = dose.scheduledDateTime.toLocalTime().format(timeFormatter)
+        )
 
         val fallbackIntent = MedicationAlarmReceiver.createIntent(
             context = applicationContext,

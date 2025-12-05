@@ -137,4 +137,36 @@ interface MedicationRecordDao {
         """
     )
     suspend fun getLatestScheduledDateTime(scheduleId: Long): LocalDateTime?
+
+    @Query(
+        """
+        SELECT id FROM medication_records
+        WHERE scheduleId = :scheduleId AND scheduledDateTime >= :fromDateTime
+        """
+    )
+    suspend fun getRecordIdsFrom(scheduleId: Long, fromDateTime: LocalDateTime): List<Long>
+
+    @Query(
+        """
+        DELETE FROM medication_records
+        WHERE scheduleId = :scheduleId AND scheduledDateTime >= :fromDateTime
+        """
+    )
+    suspend fun deleteRecordsFrom(scheduleId: Long, fromDateTime: LocalDateTime)
+
+    @Query(
+        """
+        SELECT id FROM medication_records
+        WHERE scheduleId = :scheduleId
+        """
+    )
+    suspend fun getRecordIds(scheduleId: Long): List<Long>
+
+    @Query(
+        """
+        DELETE FROM medication_records
+        WHERE scheduleId = :scheduleId
+        """
+    )
+    suspend fun deleteBySchedule(scheduleId: Long)
 }

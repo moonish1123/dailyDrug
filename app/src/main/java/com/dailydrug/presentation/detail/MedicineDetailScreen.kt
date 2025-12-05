@@ -20,6 +20,7 @@ import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CardDefaults
@@ -35,12 +36,15 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -57,20 +61,58 @@ import java.time.format.DateTimeFormatter
 fun MedicineDetailScreen(
     medicineId: Long?,
     onBack: () -> Unit,
+    onEditSchedule: (Long) -> Unit,
     viewModel: MedicineDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    var scheduleToDelete by remember { mutableStateOf<ScheduleUiModel?>(null) }
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { snackbarHostState.showSnackbar(it) }
     }
 
+    LaunchedEffect(Unit) {
+        viewModel.events.collectLatest { event ->
+            when (event) {
+                is MedicineDetailEvent.ShowMessage -> snackbarHostState.showSnackbar(event.message)
+            }
+        }
+    }
+
     MedicineDetailContent(
         uiState = uiState,
         snackbarHostState = snackbarHostState,
-        onBack = onBack
+        onBack = onBack,
+        onEditSchedule = { schedule -> onEditSchedule(schedule.id) },
+        onDeleteSchedule = { schedule -> scheduleToDelete = schedule }
     )
+
+    scheduleToDelete?.let { target ->
+        AlertDialog(
+            onDismissRequest = { scheduleToDelete = null },
+            title = { Text("스케줄 삭제") },
+            text = {
+                Text(
+                    "${target.period}\n${target.times}\n스케줄을 삭제할까요?",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteSchedule(target.id)
+                    scheduleToDelete = null
+                }) {
+                    Text("삭제")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { scheduleToDelete = null }) {
+                    Text("취소")
+                }
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -79,7 +121,9 @@ fun MedicineDetailScreen(
 internal fun MedicineDetailContent(
     uiState: MedicineDetailUiState,
     snackbarHostState: SnackbarHostState,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onEditSchedule: (ScheduleUiModel) -> Unit,
+    onDeleteSchedule: (ScheduleUiModel) -> Unit
 ) {
     val dateFormatter = remember { DateTimeFormatter.ofPattern("yyyy.MM.dd") }
     val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
@@ -116,7 +160,11 @@ internal fun MedicineDetailContent(
             if (uiState.schedules.isNotEmpty()) {
                 item { SectionTitle("스케줄") }
                 items(uiState.schedules) { schedule ->
-                    ScheduleCard(schedule = schedule)
+                    ScheduleCard(
+                        schedule = schedule,
+                        onEdit = onEditSchedule,
+                        onDelete = onDeleteSchedule
+                    )
                 }
             }
             item { SectionTitle("복용 이력") }
@@ -247,7 +295,11 @@ private fun StatChip(icon: androidx.compose.ui.graphics.vector.ImageVector, titl
 }
 
 @Composable
-private fun ScheduleCard(schedule: ScheduleUiModel) {
+private fun ScheduleCard(
+    schedule: ScheduleUiModel,
+    onEdit: (ScheduleUiModel) -> Unit,
+    onDelete: (ScheduleUiModel) -> Unit
+) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.elevatedCardColors(
@@ -272,6 +324,14 @@ private fun ScheduleCard(schedule: ScheduleUiModel) {
                     labelColor = if (schedule.isActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                 )
             )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = { onEdit(schedule) }) { Text("수정") }
+                TextButton(onClick = { onDelete(schedule) }) { Text("삭제") }
+            }
         }
     }
 }

@@ -26,16 +26,18 @@ import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -53,6 +55,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -68,6 +72,7 @@ fun MainRoute(
     onAddSchedule: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenMedicineDetail: (Long) -> Unit,
+    onBack: (() -> Unit)? = null,
     viewModel: MainViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -91,7 +96,8 @@ fun MainRoute(
         onNextDay = viewModel::onNextDay,
         onToggleTaken = viewModel::onToggleTaken,
         onSkipDose = viewModel::onSkip,
-        onOpenMedicineDetail = onOpenMedicineDetail
+        onOpenMedicineDetail = onOpenMedicineDetail,
+        onBack = onBack
     )
 }
 
@@ -107,7 +113,8 @@ fun MainScreen(
     onNextDay: () -> Unit,
     onToggleTaken: (Long, MedicationStatus) -> Unit,
     onSkipDose: (Long) -> Unit,
-    onOpenMedicineDetail: (Long) -> Unit
+    onOpenMedicineDetail: (Long) -> Unit,
+    onBack: (() -> Unit)? = null
 ) {
     val dateFormatter = remember { DateTimeFormatter.ofPattern("yyyy.MM.dd (EEE)") }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
@@ -115,12 +122,22 @@ fun MainScreen(
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            LargeTopAppBar(
+            MediumTopAppBar(
                 title = {
                     Text(
                         text = "매일 약먹기",
                         style = MaterialTheme.typography.headlineSmall
                     )
+                },
+                navigationIcon = {
+                    onBack?.let {
+                        IconButton(onClick = it) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "뒤로가기"
+                            )
+                        }
+                    }
                 },
                 actions = {
                     IconButton(onClick = onOpenSettings) {
@@ -130,7 +147,11 @@ fun MainScreen(
                         )
                     }
                 },
-                scrollBehavior = scrollBehavior
+                scrollBehavior = scrollBehavior,
+                colors = TopAppBarDefaults.mediumTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface
+                )
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
@@ -289,40 +310,48 @@ private fun MedicationItem(
     onOpenMedicineDetail: (Long) -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
-    val cardColor: Color
-    val cardContentColor: Color
+    val scheduleColor = Color(medication.color)
+    val cardColor = when (medication.status) {
+        MedicationStatus.PENDING -> scheduleColor
+        MedicationStatus.TAKEN -> scheduleColor.blendWith(colorScheme.surface, 0.45f)
+        MedicationStatus.SKIPPED -> scheduleColor.blendWith(colorScheme.surfaceVariant, 0.3f)
+    }
+    val cardContentColor = onColorFor(cardColor)
     val statusLabel: String
     val statusIcon: ImageVector
-    val chipContainer: Color
-    val chipContent: Color
 
     when (medication.status) {
         MedicationStatus.TAKEN -> {
-            cardColor = colorScheme.primaryContainer
-            cardContentColor = colorScheme.onPrimaryContainer
             statusLabel = "복용 완료"
             statusIcon = Icons.Rounded.Check
-            chipContainer = colorScheme.primary
-            chipContent = colorScheme.onPrimary
         }
         MedicationStatus.SKIPPED -> {
-            cardColor = colorScheme.surfaceVariant
-            cardContentColor = colorScheme.onSurfaceVariant
             statusLabel = "건너뜀"
             statusIcon = Icons.Rounded.Close
-            chipContainer = colorScheme.surface
-            chipContent = colorScheme.onSurface
         }
         MedicationStatus.PENDING -> {
-            cardColor = colorScheme.errorContainer
-            cardContentColor = colorScheme.onErrorContainer
             statusLabel = "복용 예정"
             statusIcon = Icons.Rounded.Schedule
-            chipContainer = colorScheme.error
-            chipContent = colorScheme.onError
         }
     }
+
+    // 상태 칩 색상도 카드 색상과 무관하게 고정된 Material3 색상 사용
+    val chipColors = AssistChipDefaults.assistChipColors(
+        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        labelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        leadingIconContentColor = MaterialTheme.colorScheme.onSecondaryContainer
+    )
     val actionLabel = if (medication.status == MedicationStatus.TAKEN) "복용 취소" else "복용 완료"
+
+    // 버튼 색상은 카드 색상과 무관하게 고정된 Material3 색상 사용
+    val primaryActionColors = ButtonDefaults.filledTonalButtonColors(
+        containerColor = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+    )
+    val secondaryActionColors = ButtonDefaults.textButtonColors(
+        containerColor = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.tertiary
+    )
 
     ElevatedCard(
         modifier = Modifier
@@ -388,11 +417,7 @@ private fun MedicationItem(
                             modifier = Modifier.size(18.dp)
                         )
                     },
-                    colors = AssistChipDefaults.assistChipColors(
-                        containerColor = chipContainer,
-                        labelColor = chipContent,
-                        leadingIconContentColor = chipContent
-                    )
+                    colors = chipColors
                 )
             }
 
@@ -403,7 +428,10 @@ private fun MedicationItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                FilledTonalButton(onClick = { onToggleTaken(medication.recordId, medication.status) }) {
+                FilledTonalButton(
+                    onClick = { onToggleTaken(medication.recordId, medication.status) },
+                    colors = primaryActionColors
+                ) {
                     Icon(
                         imageVector = if (medication.status == MedicationStatus.TAKEN) Icons.Rounded.Close else Icons.Rounded.Check,
                         contentDescription = null,
@@ -414,7 +442,10 @@ private fun MedicationItem(
                 }
 
                 if (medication.status == MedicationStatus.PENDING) {
-                    TextButton(onClick = { onSkipDose(medication.recordId) }) {
+                    TextButton(
+                        onClick = { onSkipDose(medication.recordId) },
+                        colors = secondaryActionColors
+                    ) {
                         Icon(
                             imageVector = Icons.Rounded.Close,
                             contentDescription = null,
@@ -428,3 +459,9 @@ private fun MedicationItem(
         }
     }
 }
+
+private fun onColorFor(background: Color): Color =
+    if (background.luminance() > 0.55f) Color.Black else Color.White
+
+private fun Color.blendWith(other: Color, ratio: Float): Color =
+    lerp(other, this, ratio.coerceIn(0f, 1f))

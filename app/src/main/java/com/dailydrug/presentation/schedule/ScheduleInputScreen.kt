@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Medication
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CardDefaults
@@ -49,8 +50,10 @@ import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -77,11 +80,19 @@ fun ScheduleInputScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collectLatest { event ->
             when (event) {
-                ScheduleInputEvent.Success -> onBack()
+                ScheduleInputEvent.Success -> {
+                    showDeleteDialog = false
+                    onBack()
+                }
+                ScheduleInputEvent.Deleted -> {
+                    showDeleteDialog = false
+                    onBack()
+                }
                 is ScheduleInputEvent.ShowMessage -> scope.launch {
                     snackbarHostState.showSnackbar(event.message)
                 }
@@ -103,8 +114,37 @@ fun ScheduleInputScreen(
         onRemoveTime = viewModel::removeTimeSlot,
         onChangeTakeDays = viewModel::updateTakeDays,
         onChangeRestDays = viewModel::updateRestDays,
-        onSave = viewModel::saveSchedule
+        onSave = viewModel::saveSchedule,
+        onDelete = { showDeleteDialog = true }
     )
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!uiState.isDeleting) showDeleteDialog = false
+            },
+            title = { Text("스케줄 삭제") },
+            text = { Text("정말로 이 스케줄을 삭제할까요? 삭제하면 일정과 알림이 모두 사라집니다.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteSchedule()
+                    },
+                    enabled = !uiState.isDeleting
+                ) {
+                    Text("삭제")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteDialog = false },
+                    enabled = !uiState.isDeleting
+                ) {
+                    Text("취소")
+                }
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -124,21 +164,33 @@ internal fun ScheduleInputContent(
     onRemoveTime: (LocalTime) -> Unit,
     onChangeTakeDays: (Int) -> Unit,
     onChangeRestDays: (Int) -> Unit,
-    onSave: () -> Unit
+    onSave: () -> Unit,
+    onDelete: () -> Unit
 ) {
     val context = LocalContext.current
     val dateFormatter = remember { DateTimeFormatter.ofPattern("yyyy.MM.dd") }
     val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
+    val controlsEnabled = !(uiState.isSaving || uiState.isDeleting || uiState.isLoading)
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
-                title = { Text("스케줄 등록") },
+                title = { Text(if (uiState.isEditing) "스케줄 수정" else "스케줄 등록") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로가기")
+                    }
+                },
+                actions = {
+                    if (uiState.isEditing) {
+                        IconButton(
+                            onClick = onDelete,
+                            enabled = controlsEnabled
+                        ) {
+                            Icon(imageVector = Icons.Rounded.Delete, contentDescription = "스케줄 삭제")
+                        }
                     }
                 },
                 scrollBehavior = scrollBehavior
@@ -151,7 +203,7 @@ internal fun ScheduleInputContent(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            if (uiState.isSaving) {
+            if (uiState.isSaving || uiState.isLoading || uiState.isDeleting) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
 
@@ -171,18 +223,21 @@ internal fun ScheduleInputContent(
                             onValueChange = onNameChange,
                             label = { Text("약 이름") },
                             singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = controlsEnabled
                         )
                         OutlinedTextField(
                             value = uiState.dosage,
                             onValueChange = onDosageChange,
                             label = { Text("복용량") },
                             singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = controlsEnabled
                         )
                         ColorSelector(
                             selectedColor = uiState.selectedColor,
-                            onSelectColor = onSelectColor
+                            onSelectColor = onSelectColor,
+                            enabled = controlsEnabled
                         )
                     }
                 }
@@ -196,19 +251,28 @@ internal fun ScheduleInputContent(
                             label = "시작일",
                             value = uiState.startDate.format(dateFormatter),
                             onClick = {
-                                showDatePicker(context, uiState.startDate, onSelectStartDate)
-                            }
+                                if (controlsEnabled) {
+                                    showDatePicker(context, uiState.startDate, onSelectStartDate)
+                                }
+                            },
+                            enabled = controlsEnabled
                         )
                         DateSelectorRow(
                             label = "종료일 (선택)",
                             value = uiState.endDate?.format(dateFormatter) ?: "무기한",
                             onClick = {
-                                val base = uiState.endDate ?: uiState.startDate
-                                showDatePicker(context, base) { onSelectEndDate(it) }
+                                if (controlsEnabled) {
+                                    val base = uiState.endDate ?: uiState.startDate
+                                    showDatePicker(context, base) { onSelectEndDate(it) }
+                                }
                             },
+                            enabled = controlsEnabled,
                             supportingAction = {
                                 if (uiState.endDate != null) {
-                                    TextButton(onClick = { onSelectEndDate(null) }) {
+                                    TextButton(
+                                        onClick = { onSelectEndDate(null) },
+                                        enabled = controlsEnabled
+                                    ) {
                                         Text("초기화")
                                     }
                                 }
@@ -225,8 +289,11 @@ internal fun ScheduleInputContent(
                         TimeSlotSection(
                             timeSlots = uiState.timeSlots,
                             timeFormatter = timeFormatter,
-                            onAddTime = { showTimePicker(context, onAddTime) },
-                            onRemoveTime = onRemoveTime
+                            onAddTime = { if (controlsEnabled) showTimePicker(context, onAddTime) },
+                            onRemoveTime = { time ->
+                                if (controlsEnabled) onRemoveTime(time)
+                            },
+                            enabled = controlsEnabled
                         )
                     }
                 }
@@ -239,7 +306,8 @@ internal fun ScheduleInputContent(
                             takeDays = uiState.takeDays,
                             restDays = uiState.restDays,
                             onTakeDaysChange = onChangeTakeDays,
-                            onRestDaysChange = onChangeRestDays
+                            onRestDaysChange = onChangeRestDays,
+                            enabled = controlsEnabled
                         )
                     }
                 }
@@ -255,7 +323,8 @@ internal fun ScheduleInputContent(
                             label = { Text("메모 (선택)") },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(120.dp)
+                                .height(120.dp),
+                            enabled = controlsEnabled
                         )
                     }
                 }
@@ -274,12 +343,12 @@ internal fun ScheduleInputContent(
             ) {
                 FilledTonalButton(
                     onClick = onSave,
-                    enabled = !uiState.isSaving,
+                    enabled = controlsEnabled,
                     modifier = Modifier
                         .padding(horizontal = 20.dp, vertical = 16.dp)
                         .fillMaxWidth()
                 ) {
-                    Text("스케줄 저장")
+                    Text(if (uiState.isEditing) "스케줄 수정" else "스케줄 저장")
                 }
             }
         }
@@ -352,7 +421,8 @@ private fun SectionCard(
 @Composable
 private fun ColorSelector(
     selectedColor: Int,
-    onSelectColor: (Int) -> Unit
+    onSelectColor: (Int) -> Unit,
+    enabled: Boolean = true
 ) {
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -363,6 +433,7 @@ private fun ColorSelector(
             FilterChip(
                 selected = selectedColor == colorInt,
                 onClick = { onSelectColor(colorInt) },
+                enabled = enabled,
                 label = { Text("컬러 ${index + 1}") },
                 leadingIcon = {
                     Surface(
@@ -388,11 +459,13 @@ private fun DateSelectorRow(
     label: String,
     value: String,
     onClick: () -> Unit,
+    enabled: Boolean = true,
     supportingAction: @Composable (() -> Unit)? = null
 ) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
+        enabled = enabled,
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface
@@ -431,7 +504,8 @@ private fun TimeSlotSection(
     timeSlots: List<LocalTime>,
     timeFormatter: DateTimeFormatter,
     onAddTime: () -> Unit,
-    onRemoveTime: (LocalTime) -> Unit
+    onRemoveTime: (LocalTime) -> Unit,
+    enabled: Boolean = true
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (timeSlots.isEmpty()) {
@@ -448,6 +522,7 @@ private fun TimeSlotSection(
                 timeSlots.forEach { time ->
                     AssistChip(
                         onClick = { onRemoveTime(time) },
+                        enabled = enabled,
                         label = { Text(time.format(timeFormatter)) },
                         leadingIcon = {
                             Icon(
@@ -471,7 +546,7 @@ private fun TimeSlotSection(
                 }
             }
         }
-        FilledTonalButton(onClick = onAddTime) {
+        FilledTonalButton(onClick = onAddTime, enabled = enabled) {
             Icon(imageVector = Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(6.dp))
             Text("시간 추가")
@@ -485,7 +560,8 @@ private fun PatternSection(
     takeDays: Int,
     restDays: Int,
     onTakeDaysChange: (Int) -> Unit,
-    onRestDaysChange: (Int) -> Unit
+    onRestDaysChange: (Int) -> Unit,
+    enabled: Boolean = true
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         val presets = listOf(
@@ -505,6 +581,7 @@ private fun PatternSection(
                         onTakeDaysChange(preset.takeDays)
                         onRestDaysChange(preset.restDays)
                     },
+                    enabled = enabled,
                     label = { Text(preset.label) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -523,7 +600,8 @@ private fun PatternSection(
                 label = { Text("복용 일수") },
                 keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
                 singleLine = true,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                enabled = enabled
             )
             OutlinedTextField(
                 value = restDays.toString(),
@@ -531,7 +609,8 @@ private fun PatternSection(
                 label = { Text("휴식 일수") },
                 keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
                 singleLine = true,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                enabled = enabled
             )
         }
         val patternText = if (restDays == 0) "매일 복용" else "${takeDays}일 복용 후 ${restDays}일 휴식"

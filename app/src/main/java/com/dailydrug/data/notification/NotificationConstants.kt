@@ -11,6 +11,7 @@ object NotificationConstants {
     const val ACTION_SNOOZE = "com.dailydrug.action.SNOOZE"
     const val ACTION_TAKE = "com.dailydrug.action.TAKE"
     const val ACTION_TAKE_TODAY = "com.dailydrug.action.TAKE_TODAY"
+    const val ACTION_DISMISS_ALARM_UI = "com.dailydrug.action.DISMISS_ALARM_UI"
 
     const val EXTRA_RECORD_ID = "extra_record_id"
     const val EXTRA_MEDICINE_NAME = "extra_medicine_name"

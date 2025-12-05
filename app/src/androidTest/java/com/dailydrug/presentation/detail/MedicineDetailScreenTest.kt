@@ -64,7 +64,9 @@ class MedicineDetailScreenTest {
                 MedicineDetailContent(
                     uiState = state,
                     snackbarHostState = SnackbarHostState(),
-                    onBack = {}
+                    onBack = {},
+                    onEditSchedule = {},
+                    onDeleteSchedule = {}
                 )
             }
         }
@@ -93,7 +95,9 @@ class MedicineDetailScreenTest {
                 MedicineDetailContent(
                     uiState = state,
                     snackbarHostState = SnackbarHostState(),
-                    onBack = {}
+                    onBack = {},
+                    onEditSchedule = {},
+                    onDeleteSchedule = {}
                 )
             }
         }

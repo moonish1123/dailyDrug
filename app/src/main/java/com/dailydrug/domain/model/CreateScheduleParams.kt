@@ -6,8 +6,10 @@ import java.time.LocalTime
 /**
  * Immutable payload used when creating or updating a medication schedule.
  * If [medicineId] is null, the data layer should create a new medicine entry.
+ * When [scheduleId] is provided, the repository should update the existing schedule.
  */
 data class CreateScheduleParams(
+    val scheduleId: Long? = null,
     val medicineId: Long? = null,
     val name: String,
     val dosage: String,
