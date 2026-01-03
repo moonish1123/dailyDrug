@@ -13,12 +13,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.SmartToy
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.Card
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -26,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
@@ -48,7 +53,8 @@ import com.dailydrug.presentation.permission.extensions.findActivity
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onOpenLlmSettings: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = context.findActivity()
@@ -126,6 +132,12 @@ fun SettingsScreen(
                 secondaryActionLabel = "상태 새로고침"
             )
 
+            // LLM 설정 카드
+            LlmSettingsCard(
+                onOpenLlmSettings = onOpenLlmSettings,
+                modifier = Modifier.fillMaxWidth()
+            )
+
             Spacer(modifier = Modifier.height(12.dp))
 
             FilledTonalButton(
@@ -195,6 +207,59 @@ private fun PermissionCard(
                     }
                 }
                 FilledTonalButton(onClick = onSecondaryAction ?: {}) { Text(secondaryActionLabel) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LlmSettingsCard(
+    onOpenLlmSettings: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    ElevatedCard(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.large
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.SmartToy,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(28.dp)
+                )
+                Text(
+                    text = "AI Assistant 설정",
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+
+            Text(
+                text = "AI 제공업체를 선택하고 API 키를 관리하세요. 온라인/오프라인을 전환할 수 있습니다.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            OutlinedButton(
+                onClick = onOpenLlmSettings,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Settings,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("LLM 설정")
             }
         }
     }

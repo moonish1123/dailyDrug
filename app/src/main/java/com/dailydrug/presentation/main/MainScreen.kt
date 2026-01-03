@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dailydrug.domain.model.MedicationStatus
+import com.dailydrug.domain.model.MedicationTimePeriod
 import kotlinx.coroutines.flow.collectLatest
 import java.time.format.DateTimeFormatter
 
@@ -249,12 +250,13 @@ fun MainScreen(
                             bottom = 112.dp
                         )
                     ) {
+                        // 시간대별로 그룹화하여 표시
                         items(
-                            items = state.todayMedications,
-                            key = { it.recordId }
-                        ) { medication ->
-                            MedicationItem(
-                                medication = medication,
+                            items = state.medicationGroups,
+                            key = { it.period.name }
+                        ) { group ->
+                            MedicationTimeGroupSection(
+                                group = group,
                                 onToggleTaken = onToggleTaken,
                                 onSkipDose = onSkipDose,
                                 onOpenMedicineDetail = onOpenMedicineDetail
@@ -465,3 +467,79 @@ private fun onColorFor(background: Color): Color =
 
 private fun Color.blendWith(other: Color, ratio: Float): Color =
     lerp(other, this, ratio.coerceIn(0f, 1f))
+
+/**
+ * 시간대별 약 그룹 섹션
+ */
+@Composable
+private fun MedicationTimeGroupSection(
+    group: MedicationTimeGroupUi,
+    onToggleTaken: (Long, MedicationStatus) -> Unit,
+    onSkipDose: (Long) -> Unit,
+    onOpenMedicineDetail: (Long) -> Unit
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // 시간대 헤더
+        TimePeriodHeader(
+            period = group.period,
+            isAllTaken = group.isAllTaken,
+            pendingCount = group.pendingCount
+        )
+
+        // 시간대별 약 목록
+        group.medications.forEach { medication ->
+            MedicationItem(
+                medication = medication,
+                onToggleTaken = onToggleTaken,
+                onSkipDose = onSkipDose,
+                onOpenMedicineDetail = onOpenMedicineDetail
+            )
+        }
+    }
+}
+
+/**
+ * 시간대 헤더 (간단한 텍스트 형태)
+ */
+@Composable
+private fun TimePeriodHeader(
+    period: MedicationTimePeriod,
+    isAllTaken: Boolean,
+    pendingCount: Int
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        // 시간대 이름
+        Text(
+            text = period.displayName,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        // 상태 텍스트
+        val statusText = when {
+            isAllTaken -> "완료"
+            pendingCount > 0 -> "미복용 $pendingCount"
+            else -> null
+        }
+        statusText?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (isAllTaken) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.tertiary
+                }
+            )
+        }
+    }
+}

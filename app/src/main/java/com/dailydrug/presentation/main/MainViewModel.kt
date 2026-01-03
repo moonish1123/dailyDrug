@@ -4,9 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailydrug.domain.model.ScheduledDose
 import com.dailydrug.domain.model.MedicationStatus
+import com.dailydrug.domain.model.MedicationTimePeriod
 import com.dailydrug.domain.usecase.GetTodayMedicationsUseCase
 import com.dailydrug.domain.usecase.RecordMedicationUseCase
 import com.dailydrug.domain.usecase.ScheduleNotificationUseCase
+import com.dailydrug.domain.model.groupByTimePeriod
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -51,10 +53,12 @@ class MainViewModel @Inject constructor(
                         .map { doses -> date to doses }
                 }
                 .collect { (date, doses) ->
+                    val medications = doses.map { it.toUi() }
                     _uiState.update { state ->
                         state.copy(
                             selectedDate = date,
-                            todayMedications = doses.map { it.toUi() },
+                            todayMedications = medications,
+                            medicationGroups = medications.groupByTimePeriodForUi(),
                             isLoading = false
                         )
                     }
@@ -146,4 +150,21 @@ class MainViewModel @Inject constructor(
 
 sealed interface MainUiEvent {
     data class ShowMessage(val message: String) : MainUiEvent
+}
+
+/**
+ * TodayMedication 리스트를 시간대별로 그룹화 (UI용)
+ */
+private fun List<TodayMedication>.groupByTimePeriodForUi(): List<MedicationTimeGroupUi> {
+    return MedicationTimePeriod.sortedValues()
+        .mapNotNull { period ->
+            val periodMedications = filter { medication ->
+                MedicationTimePeriod.fromTime(medication.scheduledTime) == period
+            }
+            if (periodMedications.isNotEmpty()) {
+                MedicationTimeGroupUi(period, periodMedications.sortedBy { it.scheduledTime })
+            } else {
+                null
+            }
+        }
 }

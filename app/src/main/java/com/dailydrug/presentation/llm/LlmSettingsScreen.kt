@@ -1,0 +1,639 @@
+package com.dailydrug.presentation.llm
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dailydrug.data.model.LlmSettingsEvent
+import com.dailydrug.data.model.LlmSettingsUiState
+import com.dailydrug.presentation.llm.LlmSettingsViewModel
+import com.llmmodule.domain.model.LlmProvider
+import kotlinx.coroutines.launch
+
+/**
+ * LLM 설정 화면
+ * 프로바이더 선택, API 키 설정, 테스트 기능 제공
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LlmSettingsScreen(
+    viewModel: LlmSettingsViewModel = hiltViewModel(),
+    onNavigateBack: () -> Unit
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(uiState.error) {
+        if (uiState.error != null) {
+            // 에러 메시지를 표시하거나 Toast로 띄울 수 있음
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // 상단 바
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onNavigateBack) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "뒤로")
+            }
+
+            Text(
+                text = "LLM 설정",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        // 설정 내용
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+        ) {
+            // 프로바이더 선택 섹션
+            ProviderSelectionSection(
+                selectedProvider = uiState.settings.selectedProvider,
+                onProviderSelected = { provider ->
+                    viewModel.onEvent(LlmSettingsEvent.ProviderSelected(provider))
+                },
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
+
+            // API 키 관리 섹션
+            ApiKeyManagementSection(
+                uiState = uiState,
+                onShowApiKeyDialog = { provider ->
+                    viewModel.onEvent(LlmSettingsEvent.ShowApiKeyDialog(provider))
+                },
+                onTestConnection = { provider ->
+                    viewModel.onEvent(LlmSettingsEvent.TestConnection(provider))
+                },
+                onClearTestResult = { viewModel.clearTestResult() },
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
+
+            // Local LLM 설정 섹션 (일시적으로 비활성화)
+            // LocalLlmSettingsSection(
+            //     localLlmEnabled = uiState.settings.localLlmEnabled,
+            //     autoSwitchToOffline = uiState.settings.autoSwitchToOffline,
+            //     onLocalLlmToggled = viewModel::toggleLocalLlmEnabled,
+            //     onAutoSwitchToggled = viewModel::toggleAutoSwitchToOffline,
+            //     modifier = Modifier.padding(vertical = 16.dp)
+            // )
+        }
+
+        // 저장 버튼
+        Button(
+            onClick = {
+                coroutineScope.launch {
+                    keyboardController?.hide()
+                    viewModel.onEvent(LlmSettingsEvent.SaveSettings)
+                    onNavigateBack()
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            enabled = uiState.settings.isValid()
+        ) {
+            Text("설정 저장")
+        }
+    }
+
+    // API 키 설정 다이얼로그
+    if (uiState.showApiKeyDialog && uiState.editingProvider != null) {
+        ApiKeyDialog(
+            provider = uiState.editingProvider!!,
+            currentApiKey = when (uiState.editingProvider) {
+                is LlmProvider.Claude -> uiState.settings.claudeApiKey
+                is LlmProvider.Gpt -> uiState.settings.gptApiKey
+                is LlmProvider.OpenAI -> uiState.settings.openAiApiKey
+                else -> ""
+            },
+            onDismiss = { viewModel.onEvent(LlmSettingsEvent.DismissDialog) },
+            onSave = { apiKey ->
+                viewModel.onEvent(LlmSettingsEvent.ApiKeyUpdated(uiState.editingProvider!!, apiKey))
+            }
+        )
+    }
+
+    // 에러 메시지 스낵바
+    val error = uiState.error
+    if (error != null) {
+        Snackbar(
+            modifier = Modifier.padding(16.dp),
+            action = {
+                TextButton(onClick = { viewModel.clearError() }) {
+                    Text("닫기")
+                }
+            }
+        ) {
+            Text(error)
+        }
+    }
+}
+
+/**
+ * 프로바이더 선택 섹션
+ */
+@Composable
+private fun ProviderSelectionSection(
+    selectedProvider: LlmProvider,
+    onProviderSelected: (LlmProvider) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = "LLM 프로바이더 선택",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Column(
+            modifier = Modifier.selectableGroup()
+        ) {
+            LlmProvider.getAllProviders().forEach { provider ->
+                val isSelected = selectedProvider == provider
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .selectable(
+                            selected = isSelected,
+                            onClick = { onProviderSelected(provider) }
+                        ),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isSelected) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surface
+                        }
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 프로바이더 아이콘
+                        Icon(
+                            imageVector = getProviderIcon(provider),
+                            contentDescription = provider.displayName,
+                            tint = if (isSelected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+
+                        Spacer(modifier = Modifier.width(16.dp))
+
+                        // 프로바이더 정보
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = provider.displayName,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                }
+                            )
+
+                            Text(
+                                text = getProviderDescription(provider),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        // 선택 상태 라디오 버튼
+                        RadioButton(
+                            selected = isSelected,
+                            onClick = { onProviderSelected(provider) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * API 키 관리 섹션
+ */
+@Composable
+private fun ApiKeyManagementSection(
+    uiState: LlmSettingsUiState,
+    onShowApiKeyDialog: (LlmProvider) -> Unit,
+    onTestConnection: (LlmProvider) -> Unit,
+    onClearTestResult: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val onlineProviders = LlmProvider.getOnlineProviders()
+
+    Column(modifier = modifier) {
+        Text(
+            text = "API 키 관리",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        onlineProviders.forEach { provider ->
+            val hasApiKey = uiState.isApiKeyConfigured(provider)
+            val testResult = uiState.testConnectionResult
+            val isThisProviderTested = testResult?.provider == provider
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = provider.displayName,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (hasApiKey) Icons.Default.CheckCircle else Icons.Default.Error,
+                                    contentDescription = null,
+                                    tint = if (hasApiKey) Color.Green else Color.Red,
+                                    modifier = Modifier.size(16.dp)
+                                )
+
+                                Spacer(modifier = Modifier.width(4.dp))
+
+                                Text(
+                                    text = if (hasApiKey) "API 키 설정됨" else "API 키 필요",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (hasApiKey) Color.Green else Color.Red
+                                )
+                            }
+                        }
+
+                        Row {
+                            // API 키 설정 버튼
+                            OutlinedButton(
+                                onClick = { onShowApiKeyDialog(provider) },
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Key,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("설정")
+                            }
+
+                            // 연결 테스트 버튼
+                            Button(
+                                onClick = { onTestConnection(provider) },
+                                enabled = hasApiKey && !uiState.testConnectionInProgress
+                            ) {
+                                if (uiState.testConnectionInProgress) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Default.CloudQueue,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("테스트")
+                            }
+                        }
+                    }
+
+                    // 연결 테스트 결과
+                    if (isThisProviderTested && testResult != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(8.dp)
+                                .background(
+                                    color = if (testResult.success) {
+                                        Color.Green.copy(alpha = 0.1f)
+                                    } else {
+                                        Color.Red.copy(alpha = 0.1f)
+                                    }
+                                )
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (testResult.success) Icons.Default.CheckCircle else Icons.Default.Error,
+                                contentDescription = null,
+                                tint = if (testResult.success) Color.Green else Color.Red,
+                                modifier = Modifier.size(20.dp)
+                            )
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = testResult.message,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (testResult.success) Color.Green else Color.Red
+                                )
+
+                                testResult.responseTime?.let { time ->
+                                    Text(
+                                        text = "응답 시간: ${time}ms",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            IconButton(
+                                onClick = onClearTestResult
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = null)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Local LLM 설정 섹션
+ */
+@Composable
+private fun LocalLlmSettingsSection(
+    localLlmEnabled: Boolean,
+    autoSwitchToOffline: Boolean,
+    onLocalLlmToggled: (Boolean) -> Unit,
+    onAutoSwitchToggled: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "Local LLM 설정",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Local LLM 활성화 토글
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Local LLM 활성화",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = "오프라인에서 로컬 LLM 사용 (ExecuTorch)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Switch(
+                        checked = localLlmEnabled,
+                        onCheckedChange = onLocalLlmToggled
+                    )
+                }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 오프라인 자동 전환 토글
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "오프라인 자동 전환",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Text(
+                        text = "인터넷 연결 없을 때 자동으로 Local LLM로 전환",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Switch(
+                    checked = autoSwitchToOffline,
+                    onCheckedChange = onAutoSwitchToggled,
+                    enabled = localLlmEnabled
+                )
+            }
+
+            if (localLlmEnabled) {
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedCard {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            Column {
+                                Text(
+                                    text = "Local LLM 정보",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = "• 최소 2GB RAM 필요\n• 약 500MB 저장 공간 필요\n• 모델 로딩 시 약간의 지연 발생",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * API 키 설정 다이얼로그
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ApiKeyDialog(
+    provider: LlmProvider,
+    currentApiKey: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var apiKey by remember { mutableStateOf(currentApiKey) }
+    var showPassword by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("${provider.displayName} API 키")
+        },
+        text = {
+            Column {
+                Text(
+                    text = "${provider.displayName}의 API 키를 입력하세요.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = apiKey,
+                    onValueChange = { apiKey = it },
+                    label = { Text("API Key") },
+                    placeholder = { Text("sk-... 또는 Claude API 키") },
+                    visualTransformation = if (showPassword) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    trailingIcon = {
+                        IconButton(onClick = { showPassword = !showPassword }) {
+                            Icon(
+                                imageVector = if (showPassword) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = if (showPassword) "숨김" else "표시"
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "• API 키는 앱 내에 안전하게 저장됩니다\n• 외부에 유출되지 않도록 주의하세요",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(apiKey.trim())
+                    onDismiss()
+                },
+                enabled = apiKey.isNotBlank()
+            ) {
+                Text("저장")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("취소")
+            }
+        }
+    )
+}
+
+/**
+ * 프로바이더별 아이콘 반환
+ */
+private fun getProviderIcon(provider: LlmProvider): ImageVector {
+    return when (provider) {
+        is LlmProvider.Claude -> Icons.Default.CloudQueue
+        is LlmProvider.Gpt -> Icons.Default.Chat
+        is LlmProvider.OpenAI -> Icons.Default.SmartToy
+        is LlmProvider.Local -> Icons.Default.Memory
+    }
+}
+
+/**
+ * 프로바이더별 설명 반환
+ */
+private fun getProviderDescription(provider: LlmProvider): String {
+    return when (provider) {
+        is LlmProvider.Claude -> "Anthropic Claude (인터넷 필요)"
+        is LlmProvider.Gpt -> "OpenAI GPT (인터넷 필요)"
+        is LlmProvider.OpenAI -> "OpenAI API (인터넷 필요)"
+        is LlmProvider.Local -> "오프라인 LLM (인터넷 불필요)"
+    }
+}

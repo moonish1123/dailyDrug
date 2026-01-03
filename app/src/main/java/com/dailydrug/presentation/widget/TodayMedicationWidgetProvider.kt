@@ -26,10 +26,16 @@ class TodayMedicationWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
+        android.util.Log.d(TAG, "🔄 Widget: onUpdate called for ${appWidgetIds.size} widgets")
+
         appWidgetIds.forEach { appWidgetId ->
             val views = createRemoteViews(context, appWidgetId)
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
+
+        // RemoteViewsService에 데이터 변경 알림
+        appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetIds, R.id.widget_list)
+        android.util.Log.d(TAG, "✅ Widget: Notified data changed for widget list")
     }
 
     override fun onReceive(context: Context, intent: Intent) {

@@ -120,6 +120,7 @@ class MedicationRepositoryImpl @Inject constructor(
                 targetSchedule.id
             }
             reminderScheduler.scheduleDailyRefresh()
+            reminderScheduler.notifyWidgets()
             scheduleId
         }
     }

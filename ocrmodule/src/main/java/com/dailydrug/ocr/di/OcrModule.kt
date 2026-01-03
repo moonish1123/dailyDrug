@@ -2,6 +2,7 @@ package com.dailydrug.ocr.di
 
 import com.dailydrug.ocr.data.datasource.OcrDataSource
 import com.dailydrug.ocr.data.datasource.OcrDataSourceImpl
+import com.dailydrug.ocr.data.parser.DrugInfoParser
 import com.dailydrug.ocr.data.repository.OcrRepositoryImpl
 import com.dailydrug.ocr.domain.repository.OcrRepository
 import dagger.Binds
@@ -25,4 +26,10 @@ abstract class OcrModule {
     abstract fun bindOcrRepository(
         impl: OcrRepositoryImpl
     ): OcrRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindDrugInfoParser(
+        impl: DrugInfoParser
+    ): DrugInfoParser
 }

@@ -3,11 +3,11 @@ package com.llmmodule.di
 import com.llmmodule.data.provider.LlmService
 import com.llmmodule.data.provider.claude.ClaudeLlmService
 import com.llmmodule.data.provider.gpt.GptLlmService
-import com.llmmodule.data.provider.local.LocalLlmService
+import com.llmmodule.data.provider.openai.OpenAiLlmService
 import com.llmmodule.data.repository.LlmRepositoryImpl
-import com.llmmodule.domain.config.LlmConfiguration
 import com.llmmodule.domain.repository.LlmRepository
 import com.networkmodule.api.NetworkClientFactory
+import dagger.Binds
 import dagger.BindsOptionalOf
 import dagger.Module
 import dagger.Provides
@@ -37,7 +37,17 @@ object LlmProviderModule {
     @Provides
     @Singleton
     @IntoSet
-    fun provideLocalService(): LlmService = LocalLlmService()
+    fun provideOpenAiService(factory: NetworkClientFactory): LlmService =
+        OpenAiLlmService(factory)
+
+    // Local LLM service temporarily disabled due to compilation issues
+    // @Provides
+    // @Singleton
+    // @IntoSet
+    // fun provideLocalService(
+    //     executorRunner: ExecutorRunner,
+    //     assetManager: ModelAssetManager
+    // ): LlmService = LocalLlmService(executorRunner, assetManager)
 }
 
 @Module
@@ -47,17 +57,33 @@ object LlmBindingsModule {
     @Provides
     @Singleton
     fun provideLlmRepository(
-        configuration: Optional<LlmConfiguration>,
         services: Set<@JvmSuppressWildcards LlmService>
     ): LlmRepository {
-        return LlmRepositoryImpl(configuration.orElse(null), services)
+        return LlmRepositoryImpl(services)
     }
 }
 
-@Module
-@InstallIn(SingletonComponent::class)
-interface LlmConfigurationModule {
-
-    @BindsOptionalOf
-    fun optionalLlmConfiguration(): LlmConfiguration
-}
+// Local LLM module temporarily disabled
+// @Module
+// @InstallIn(SingletonComponent::class)
+// object LocalLlmModule {
+//
+//     @Provides
+//     @Singleton
+//     fun provideMemoryManager(): MemoryManager = MemoryManager()
+//
+//     @Provides
+//     @Singleton
+//     fun provideModelAssetManager(): ModelAssetManager = ModelAssetManager()
+//
+//     @Provides
+//     @Singleton
+//     fun provideExecutorRunner(
+//         assetManager: ModelAssetManager,
+//         memoryManager: MemoryManager
+//     ): ExecutorRunner = ExecutorRunner(assetManager, memoryManager)
+//
+//     @Provides
+//     @Singleton
+//     fun provideLlmConfigurationManager(): LlmConfigurationManager = LlmConfigurationManager()
+// }

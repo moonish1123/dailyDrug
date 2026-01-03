@@ -51,6 +51,15 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
 
+    // ExecuTorch Local LLM dependencies (TODO: Replace with actual ExecuTorch libraries)
+    // implementation("org.pytorch:torch-android-lite:0.15.0")
+    // implementation("org.pytorch:executorch-android:0.3.0")
+    // implementation("org.pytorch:executorch-llm:0.3.0")
+    // implementation("com.google.protobuf:protobuf-javalite:3.21.12")
+
+    // Assets management
+    implementation("androidx.core:core-ktx:1.12.0")
+
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)

@@ -6,13 +6,20 @@ package com.llmmodule.domain.model
  * Stored identifiers map to persisted configuration values such as
  * "claude/KEY" or "gpt/KEY". Local provider does not require a key.
  */
-sealed class LlmProvider(val id: String) {
-    data object Claude : LlmProvider("claude")
-    data object Gpt : LlmProvider("gpt")
-    data object Local : LlmProvider("local")
+sealed class LlmProvider(val id: String, val displayName: String, val isOnline: Boolean) {
+    data object Claude : LlmProvider("claude", "Claude (Anthropic)", true)
+    data object Gpt : LlmProvider("gpt", "GPT (OpenAI)", true)
+    data object OpenAI : LlmProvider("openai", "OpenAI", true)
+    data object Local : LlmProvider("local", "Local LLM", false)
 
     companion object {
-        private val providers = listOf(Claude, Gpt, Local)
+        private val providers = listOf(Claude, Gpt, OpenAI, Local)
+
+        fun getAllProviders(): List<LlmProvider> = providers
+
+        fun getOnlineProviders(): List<LlmProvider> = providers.filter { it.isOnline }
+
+        fun getOfflineProviders(): List<LlmProvider> = providers.filter { !it.isOnline }
 
         fun fromId(id: String?): LlmProvider? =
             providers.firstOrNull { it.id.equals(id, ignoreCase = true) }

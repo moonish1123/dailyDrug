@@ -38,6 +38,17 @@
                 android:textStyle="bold" />
 
             <TextView
+                android:id="@+id/widget_item_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="4dp"
+                android:textSize="11sp"
+                android:textColor="@android:color/white"
+                android:background="@android:color/holo_green_dark"
+                android:visibility="gone" />
+
+            <TextView
                 android:id="@+id/widget_item_take_button"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -56,6 +67,15 @@
             android:layout_marginTop="2dp"
             android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
             android:textColor="@android:color/darker_gray" />
+
+        <TextView
+            android:id="@+id/widget_item_taken_time"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textSize="11sp"
+            android:textColor="@android:color/holo_green_dark"
+            android:visibility="gone" />
     </LinearLayout>
 
 </FrameLayout>

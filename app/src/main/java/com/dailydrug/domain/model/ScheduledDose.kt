@@ -14,4 +14,10 @@ data class ScheduledDose(
     val status: MedicationStatus
 ) {
     val isMissed: Boolean get() = status == MedicationStatus.PENDING
+
+    /**
+     * 예약된 시간에 해당하는 시간대 반환
+     */
+    val timePeriod: MedicationTimePeriod
+        get() = MedicationTimePeriod.fromTime(scheduledDateTime.toLocalTime())
 }

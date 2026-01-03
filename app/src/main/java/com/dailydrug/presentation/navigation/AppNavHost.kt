@@ -8,6 +8,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.dailydrug.presentation.detail.MedicineDetailScreen
+import com.dailydrug.presentation.llm.LlmSettingsScreen
 import com.dailydrug.presentation.main.MainRoute
 import com.dailydrug.presentation.schedule.ScheduleInputScreen
 import com.dailydrug.presentation.settings.SettingsScreen
@@ -36,6 +37,7 @@ sealed class AppDestination(val route: String) {
         const val ARG_MEDICINE_ID = "medicineId"
     }
     data object Settings : AppDestination("settings")
+    data object LlmSettings : AppDestination("llm_settings")
 }
 
 @Composable
@@ -94,7 +96,13 @@ fun AppNavHost(
             )
         }
         composable(route = AppDestination.Settings.route) {
-            SettingsScreen(onBack = { navController.popBackStack() })
+            SettingsScreen(
+                onBack = { navController.popBackStack() },
+                onOpenLlmSettings = { navController.navigate(AppDestination.LlmSettings.route) }
+            )
+        }
+        composable(route = AppDestination.LlmSettings.route) {
+            LlmSettingsScreen(onNavigateBack = { navController.popBackStack() })
         }
     }
 }
