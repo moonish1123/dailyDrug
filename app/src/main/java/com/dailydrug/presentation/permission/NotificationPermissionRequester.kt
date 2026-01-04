@@ -23,24 +23,54 @@ fun NotificationPermissionRequester() {
     val manager = remember { NotificationPermissionManager(context) }
     val showNotificationDialog = remember { mutableStateOf(false) }
     val showExactAlarmDialog = remember { mutableStateOf(false) }
+    val showFullScreenIntentDialog = remember { mutableStateOf(false) }
+    
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+
+    // Function to check permissions in order
+    fun checkPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !manager.hasPostNotificationsPermission()) {
+            showNotificationDialog.value = true
+            showExactAlarmDialog.value = false
+            showFullScreenIntentDialog.value = false
+        } else if (!manager.canScheduleExactAlarms()) {
+            showNotificationDialog.value = false
+            showExactAlarmDialog.value = true
+            showFullScreenIntentDialog.value = false
+        } else if (!manager.canUseFullScreenIntent()) {
+            showNotificationDialog.value = false
+            showExactAlarmDialog.value = false
+            showFullScreenIntentDialog.value = true
+        } else {
+            showNotificationDialog.value = false
+            showExactAlarmDialog.value = false
+            showFullScreenIntentDialog.value = false
+        }
+    }
+
+    // Re-check permissions when app resumes (e.g. returning from Settings)
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                checkPermissions()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { granted ->
-            if (!granted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                showNotificationDialog.value = true
-            } else if (!manager.canScheduleExactAlarms()) {
-                showExactAlarmDialog.value = true
-            }
+            // Re-evaluate chain after permission result
+            checkPermissions()
         }
     )
 
     LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !manager.hasPostNotificationsPermission()) {
-            showNotificationDialog.value = true
-        } else if (!manager.canScheduleExactAlarms()) {
-            showExactAlarmDialog.value = true
-        }
+        checkPermissions()
     }
 
     NotificationPermissionDialog(
@@ -62,6 +92,16 @@ fun NotificationPermissionRequester() {
         confirmLabel = "설정 열기",
         onConfirm = {
             activity?.let { manager.openExactAlarmSettings(it) }
+        }
+    )
+
+    NotificationPermissionDialog(
+        isVisible = showFullScreenIntentDialog,
+        title = "전체 화면 알림 권한 필요",
+        message = "알람 시 화면이 켜지게 하려면 '전체 화면 알림' 권한을 허용해야 합니다.",
+        confirmLabel = "설정 열기",
+        onConfirm = {
+            activity?.let { manager.openFullScreenIntentSettings(it) }
         }
     )
 }

@@ -29,7 +29,8 @@ import kotlinx.coroutines.launch
 class MainViewModel @Inject constructor(
     private val getTodayMedicationsUseCase: GetTodayMedicationsUseCase,
     private val recordMedicationUseCase: RecordMedicationUseCase,
-    private val scheduleNotificationUseCase: ScheduleNotificationUseCase
+    private val scheduleNotificationUseCase: ScheduleNotificationUseCase,
+    private val createScheduleUseCase: com.dailydrug.domain.usecase.CreateScheduleUseCase
 ) : ViewModel() {
 
     private val selectedDate = MutableStateFlow(LocalDate.now())
@@ -63,6 +64,32 @@ class MainViewModel @Inject constructor(
                         )
                     }
                 }
+        }
+    }
+
+    fun scheduleTestAlarm() {
+        viewModelScope.launch {
+            runCatching {
+                val now = LocalDateTime.now()
+                val testTime = now.plusMinutes(1).toLocalTime()
+                val params = com.dailydrug.domain.model.CreateScheduleParams(
+                    name = "테스트 알람",
+                    dosage = "1정",
+                    color = 0xFFE91E63.toInt(), // Pink color for test
+                    memo = "1분 뒤 알람 테스트",
+                    startDate = LocalDate.now(),
+                    endDate = LocalDate.now(),
+                    timeSlots = listOf(testTime),
+                    takeDays = 1,
+                    restDays = 0
+                )
+                createScheduleUseCase(params)
+                _events.emit(MainUiEvent.ShowMessage("1분 뒤 울리는 테스트 알람을 설정했어요."))
+                // 강제로 오늘 날짜 데이터 갱신을 위해 날짜 재선택 트리거 (필요하다면)
+                onToday() 
+            }.onFailure {
+                _events.emit(MainUiEvent.ShowMessage("테스트 알람 설정에 실패했어요."))
+            }
         }
     }
 

@@ -77,7 +77,7 @@ class ReminderScheduler(
         MedicationAlarmReceiver.cancel(context, recordId)
         NotificationHelper(context).ensureChannel()
 
-        scheduleAlarm(
+        val alarmScheduled = scheduleAlarm(
             recordId = recordId,
             medicineId = medicineId,
             medicineName = medicineName,
@@ -85,7 +85,13 @@ class ReminderScheduler(
             scheduledTime = scheduledTime,
             triggerAt = triggerAt
         )
-        scheduleReminderWorker(recordId, triggerAt)
+
+        if (!alarmScheduled) {
+            scheduleReminderWorker(recordId, triggerAt)
+        } else {
+            // Cancel any existing worker since AlarmManager is handling it
+            workManager.cancelUniqueWork(NotificationConstants.REMINDER_WORK_PREFIX + recordId)
+        }
 
         android.util.Log.i(TAG, "✅ Reminder scheduled successfully")
         android.util.Log.i(TAG, "========================================")
@@ -101,7 +107,17 @@ class ReminderScheduler(
         val dosage = originalIntent.getStringExtra(EXTRA_DOSAGE).orEmpty()
         val scheduledTime = originalIntent.getStringExtra(EXTRA_SCHEDULED_TIME).orEmpty()
         val medicineId = originalIntent.getLongExtra(EXTRA_MEDICINE_ID, -1L)
-        scheduleDoseReminder(
+
+        android.util.Log.i(TAG, "========================================")
+        android.util.Log.i(TAG, "🔄 Scheduling re-alert")
+        android.util.Log.i(TAG, "RecordId: $recordId")
+        android.util.Log.i(TAG, "Trigger At: $triggerAt")
+
+        // Cancel existing alarm only (keep notification visible)
+        MedicationAlarmReceiver.cancel(context, recordId)
+
+        // Schedule new alarm (don't dismiss current notification)
+        scheduleAlarm(
             recordId = recordId,
             medicineId = medicineId,
             medicineName = medicineName,
@@ -109,6 +125,11 @@ class ReminderScheduler(
             scheduledTime = scheduledTime,
             triggerAt = triggerAt
         )
+        // Also schedule WorkManager as backup
+        scheduleReminderWorker(recordId, triggerAt)
+
+        android.util.Log.i(TAG, "✅ Re-alert scheduled successfully")
+        android.util.Log.i(TAG, "========================================")
     }
 
     fun cancelReminder(recordId: Long) {
@@ -124,7 +145,7 @@ class ReminderScheduler(
         dosage: String,
         scheduledTime: String,
         triggerAt: LocalDateTime
-    ) {
+    ): Boolean {
         val triggerAtMillis = triggerAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val currentTimeMillis = System.currentTimeMillis()
         val delayMillis = triggerAtMillis - currentTimeMillis
@@ -133,6 +154,13 @@ class ReminderScheduler(
         android.util.Log.d(TAG, "Trigger time (millis): $triggerAtMillis")
         android.util.Log.d(TAG, "Current time (millis): $currentTimeMillis")
         android.util.Log.d(TAG, "Delay (ms): $delayMillis (${delayMillis / 1000 / 60} minutes)")
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (alarmManager?.canScheduleExactAlarms() != true) {
+                android.util.Log.w(TAG, "⚠️ Cannot schedule exact alarms, falling back to WorkManager")
+                return false
+            }
+        }
 
         val pendingIntent = MedicationAlarmReceiver.createPendingIntent(
             context = context,
@@ -144,21 +172,21 @@ class ReminderScheduler(
             medicineId = medicineId
         )
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (alarmManager?.canScheduleExactAlarms() != true) {
-                android.util.Log.w(TAG, "⚠️ Cannot schedule exact alarms, falling back to WorkManager")
-                scheduleReminderWorker(recordId, triggerAt)
-                return
-            }
+        return try {
+            alarmManager?.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerAtMillis,
+                pendingIntent
+            )
+            android.util.Log.i(TAG, "✅ AlarmManager alarm set successfully")
+            true
+        } catch (e: SecurityException) {
+            android.util.Log.e(TAG, "❌ SecurityException scheduling alarm", e)
+            false
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "❌ Failed to schedule alarm", e)
+            false
         }
-
-        alarmManager?.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            triggerAtMillis,
-            pendingIntent
-        )
-
-        android.util.Log.i(TAG, "✅ AlarmManager alarm set successfully")
     }
 
     private fun scheduleReminderWorker(

@@ -47,4 +47,24 @@ class NotificationPermissionManager(
             activity.startActivity(intent)
         }
     }
+
+    fun canUseFullScreenIntent(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return true
+        val notificationManager = context.getSystemService(android.app.NotificationManager::class.java)
+        return notificationManager?.canUseFullScreenIntent() == true
+    }
+
+    fun openFullScreenIntentSettings(activity: Activity) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return
+        try {
+            val intent = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
+                .setData(Uri.parse("package:${context.packageName}"))
+            activity.startActivity(intent)
+        } catch (e: Exception) {
+            // Fallback
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.parse("package:${context.packageName}"))
+            activity.startActivity(intent)
+        }
+    }
 }

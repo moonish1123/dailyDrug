@@ -10,6 +10,7 @@
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:name=".DailyDrugApplication"
@@ -45,6 +46,15 @@
         <receiver
             android:name=".data.alarm.MedicationAlarmReceiver"
             android:exported="false" />
+
+        <receiver
+            android:name=".data.alarm.BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <receiver
             android:name=".presentation.widget.TodayMedicationWidgetProvider"

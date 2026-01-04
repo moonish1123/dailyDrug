@@ -37,64 +37,77 @@ class MedicationAlarmReceiver : BroadcastReceiver() {
     lateinit var reminderScheduler: ReminderScheduler
 
     override fun onReceive(context: Context, intent: Intent) {
-        val receivedTime = java.time.LocalDateTime.now()
-        val recordId = intent.getLongExtra(EXTRA_RECORD_ID, -1L)
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        val wakeLock = powerManager.newWakeLock(
+            android.os.PowerManager.PARTIAL_WAKE_LOCK,
+            "DailyDrug:AlarmReceiverWakeLock"
+        )
+        wakeLock.acquire(10 * 1000L) // 10 seconds timeout
 
-        Log.i(TAG, "========================================")
-        Log.i(TAG, "🔔 AlarmReceiver triggered at: $receivedTime")
-        Log.i(TAG, "Action: ${intent.action}")
-        Log.i(TAG, "RecordId: $recordId")
+        try {
+            val receivedTime = java.time.LocalDateTime.now()
+            val recordId = intent.getLongExtra(EXTRA_RECORD_ID, -1L)
 
-        if (recordId <= 0) {
-            Log.e(TAG, "❌ Invalid recordId received in alarm intent")
-            return
+            Log.i(TAG, "========================================")
+            Log.i(TAG, "🔔 AlarmReceiver triggered at: $receivedTime")
+            Log.i(TAG, "Action: ${intent.action}")
+            Log.i(TAG, "RecordId: $recordId")
+
+            if (recordId <= 0) {
+                Log.e(TAG, "❌ Invalid recordId received in alarm intent")
+                return
+            }
+
+            val medicineName = intent.getStringExtra(EXTRA_MEDICINE_NAME).orEmpty()
+            val dosage = intent.getStringExtra(EXTRA_DOSAGE).orEmpty()
+            val scheduledTime = intent.getStringExtra(EXTRA_SCHEDULED_TIME).orEmpty()
+            val medicineId = intent.getLongExtra(EXTRA_MEDICINE_ID, -1L)
+
+            Log.i(TAG, "Medicine: $medicineName ($dosage)")
+            Log.i(TAG, "Scheduled Time: $scheduledTime")
+            Log.i(TAG, "Current Time: ${receivedTime.toLocalTime()}")
+
+            when (intent.action) {
+                ACTION_REMIND -> {
+                    Log.i(TAG, "📲 ACTION_REMIND - Showing notification and scheduling re-alert")
+                    NotificationHelper(context).showReminder(
+                        recordId = recordId,
+                        medicineId = medicineId,
+                        medicineName = medicineName,
+                        dosage = dosage,
+                        scheduledTime = scheduledTime
+                    )
+                    // Activity will be launched via FullScreenIntent in NotificationHelper if screen is locked
+                    reminderScheduler.scheduleRealert(recordId, intent)
+                    Log.i(TAG, "✅ Notification displayed and re-alert scheduled")
+                }
+                ACTION_SNOOZE -> {
+                    Log.i(TAG, "⏰ ACTION_SNOOZE - Scheduling 1-hour snooze")
+                    NotificationHelper(context).dismissReminder(recordId)
+                    reminderScheduler.scheduleRealert(recordId, intent)
+                    sendDismissBroadcast(context, recordId)
+                    Log.i(TAG, "✅ Snooze scheduled for recordId=$recordId")
+                }
+                ACTION_TAKE -> {
+                    Log.i(TAG, "✅ ACTION_TAKE - Marking as taken via notification")
+                    handleTakeAction(recordId, context, dismissNotification = true)
+                    sendDismissBroadcast(context, recordId)
+                }
+                ACTION_TAKE_TODAY -> {
+                    Log.i(TAG, "✅ ACTION_TAKE_TODAY - Marking all today's doses as taken")
+                    handleTakeAction(recordId, context, dismissNotification = true)
+                    sendDismissBroadcast(context, recordId)
+                }
+                else -> {
+                    Log.w(TAG, "⚠️ Unknown action: ${intent.action}")
+                }
+            }
+            Log.i(TAG, "========================================")
+        } finally {
+            if (wakeLock.isHeld) {
+                wakeLock.release()
+            }
         }
-
-        val medicineName = intent.getStringExtra(EXTRA_MEDICINE_NAME).orEmpty()
-        val dosage = intent.getStringExtra(EXTRA_DOSAGE).orEmpty()
-        val scheduledTime = intent.getStringExtra(EXTRA_SCHEDULED_TIME).orEmpty()
-        val medicineId = intent.getLongExtra(EXTRA_MEDICINE_ID, -1L)
-
-        Log.i(TAG, "Medicine: $medicineName ($dosage)")
-        Log.i(TAG, "Scheduled Time: $scheduledTime")
-        Log.i(TAG, "Current Time: ${receivedTime.toLocalTime()}")
-
-        when (intent.action) {
-            ACTION_REMIND -> {
-                Log.i(TAG, "📲 ACTION_REMIND - Showing notification and scheduling re-alert")
-                NotificationHelper(context).showReminder(
-                    recordId = recordId,
-                    medicineId = medicineId,
-                    medicineName = medicineName,
-                    dosage = dosage,
-                    scheduledTime = scheduledTime
-                )
-                // Activity will be launched via FullScreenIntent in NotificationHelper if screen is locked
-                reminderScheduler.scheduleRealert(recordId, intent)
-                Log.i(TAG, "✅ Notification displayed and re-alert scheduled")
-            }
-            ACTION_SNOOZE -> {
-                Log.i(TAG, "⏰ ACTION_SNOOZE - Scheduling 1-hour snooze")
-                NotificationHelper(context).dismissReminder(recordId)
-                reminderScheduler.scheduleRealert(recordId, intent)
-                sendDismissBroadcast(context, recordId)
-                Log.i(TAG, "✅ Snooze scheduled for recordId=$recordId")
-            }
-            ACTION_TAKE -> {
-                Log.i(TAG, "✅ ACTION_TAKE - Marking as taken via notification")
-                handleTakeAction(recordId, context, dismissNotification = true)
-                sendDismissBroadcast(context, recordId)
-            }
-            ACTION_TAKE_TODAY -> {
-                Log.i(TAG, "✅ ACTION_TAKE_TODAY - Marking all today's doses as taken")
-                handleTakeAction(recordId, context, dismissNotification = true)
-                sendDismissBroadcast(context, recordId)
-            }
-            else -> {
-                Log.w(TAG, "⚠️ Unknown action: ${intent.action}")
-            }
-        }
-        Log.i(TAG, "========================================")
     }
 
     private fun handleTakeAction(recordId: Long, context: Context, dismissNotification: Boolean) {

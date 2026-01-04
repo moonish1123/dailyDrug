@@ -98,6 +98,7 @@ fun MainRoute(
         onToggleTaken = viewModel::onToggleTaken,
         onSkipDose = viewModel::onSkip,
         onOpenMedicineDetail = onOpenMedicineDetail,
+        onTestAlarm = viewModel::scheduleTestAlarm,
         onBack = onBack
     )
 }
@@ -115,8 +116,10 @@ fun MainScreen(
     onToggleTaken: (Long, MedicationStatus) -> Unit,
     onSkipDose: (Long) -> Unit,
     onOpenMedicineDetail: (Long) -> Unit,
+    onTestAlarm: () -> Unit,
     onBack: (() -> Unit)? = null
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val dateFormatter = remember { DateTimeFormatter.ofPattern("yyyy.MM.dd (EEE)") }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
 
@@ -157,11 +160,24 @@ fun MainScreen(
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onAddSchedule,
-                icon = { Icon(Icons.Rounded.Add, contentDescription = "스케줄 추가") },
-                text = { Text("새 스케줄") }
-            )
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                androidx.compose.material3.SmallFloatingActionButton(
+                    onClick = onTestAlarm,
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                ) {
+                    Icon(Icons.Rounded.Schedule, contentDescription = "1분 뒤 테스트 알람")
+                }
+
+                ExtendedFloatingActionButton(
+                    onClick = onAddSchedule,
+                    icon = { Icon(Icons.Rounded.Add, contentDescription = "스케줄 추가") },
+                    text = { Text("새 스케줄") }
+                )
+            }
         }
     ) { padding ->
         Column(

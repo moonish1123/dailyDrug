@@ -259,6 +259,9 @@ class NotificationHelper(private val context: Context) {
                 )
             )
             .build()
+            .apply {
+                flags = flags or Notification.FLAG_INSISTENT
+            }
     }
 
     private fun notificationId(recordId: Long): Int =
