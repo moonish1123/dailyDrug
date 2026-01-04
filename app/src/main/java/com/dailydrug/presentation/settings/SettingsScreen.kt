@@ -47,8 +47,11 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.dailydrug.presentation.permission.NotificationPermissionManager
-import com.dailydrug.presentation.permission.extensions.findActivity
+import com.dailydrug.di.getPermissionRepository
+import com.dailydrug.permission.DailyDrugPermissions
+import com.permissionmodule.domain.model.PermissionStatus
+import com.permissionmodule.domain.repository.PermissionRepository
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,19 +61,31 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val activity = context.findActivity()
-    val permissionManager = remember { NotificationPermissionManager(context) }
-    var hasNotificationPermission by remember { mutableStateOf(permissionManager.hasPostNotificationsPermission()) }
-    var hasExactAlarmPermission by remember { mutableStateOf(permissionManager.canScheduleExactAlarms()) }
+    val permissionRepository: PermissionRepository? = remember(activity) {
+        activity?.let { getPermissionRepository(it) }
+    }
+
+    if (permissionRepository == null) {
+        // Activity를 찾을 수 없는 경우 (매우 드뭄)
+        onBack()
+        return
+    }
+
+    var permissionStates by remember { mutableStateOf<Map<com.permissionmodule.domain.model.Permission, PermissionStatus>>(emptyMap()) }
+    val context = LocalContext.current
+    var permissionStates by remember { mutableStateOf<Map<com.permissionmodule.domain.model.Permission, PermissionStatus>>(emptyMap()) }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        hasNotificationPermission = granted || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+    ) { _ ->
+        // Refresh permission states after request
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            permissionStates = permissionRepository.checkAllPermissions(DailyDrugPermissions.ALL)
+        }
     }
 
     LaunchedEffect(Unit) {
-        hasNotificationPermission = permissionManager.hasPostNotificationsPermission()
-        hasExactAlarmPermission = permissionManager.canScheduleExactAlarms()
+        permissionStates = permissionRepository.checkAllPermissions(DailyDrugPermissions.ALL)
     }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
@@ -99,17 +114,20 @@ fun SettingsScreen(
             PermissionCard(
                 icon = Icons.Rounded.Notifications,
                 title = "알림 권한",
-                statusGranted = hasNotificationPermission,
-                statusLabel = if (hasNotificationPermission) "허용됨" else "미허용",
+                statusGranted = permissionStates[DailyDrugPermissions.POST_NOTIFICATIONS] is PermissionStatus.Granted,
+                statusLabel = if (permissionStates[DailyDrugPermissions.POST_NOTIFICATIONS] is PermissionStatus.Granted) "허용됨" else "미허용",
                 description = "약 복용 알림을 정상적으로 받으려면 알림 권한이 필요합니다.",
-                onPrimaryAction = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) {
+                onPrimaryAction = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    permissionStates[DailyDrugPermissions.POST_NOTIFICATIONS] !is PermissionStatus.Granted) {
                     {
                         notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                     }
                 } else null,
                 primaryActionLabel = "권한 요청",
                 onSecondaryAction = {
-                    hasNotificationPermission = permissionManager.hasPostNotificationsPermission()
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                        permissionStates = permissionRepository.checkAllPermissions(DailyDrugPermissions.ALL)
+                    }
                 },
                 secondaryActionLabel = "상태 새로고침"
             )
@@ -117,17 +135,25 @@ fun SettingsScreen(
             PermissionCard(
                 icon = Icons.Rounded.Alarm,
                 title = "정확한 알람",
-                statusGranted = hasExactAlarmPermission,
-                statusLabel = if (hasExactAlarmPermission) "허용됨" else "미허용",
+                statusGranted = permissionStates[DailyDrugPermissions.SCHEDULE_EXACT_ALARM] is PermissionStatus.Granted,
+                statusLabel = if (permissionStates[DailyDrugPermissions.SCHEDULE_EXACT_ALARM] is PermissionStatus.Granted) "허용됨" else "미허용",
                 description = "정확한 알람 권한을 허용하면 예정된 시간에 정확히 알림을 받을 수 있습니다.",
-                onPrimaryAction = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !hasExactAlarmPermission) {
+                onPrimaryAction = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                    permissionStates[DailyDrugPermissions.SCHEDULE_EXACT_ALARM] !is PermissionStatus.Granted) {
                     {
-                        activity?.let { permissionManager.openExactAlarmSettings(it) }
+                        // Open settings for exact alarm permission
+                        DailyDrugPermissions.SCHEDULE_EXACT_ALARM.settingsAction?.let { action ->
+                            context.startActivity(android.content.Intent(action).apply {
+                                data = android.net.Uri.parse("package:${context.packageName}")
+                            })
+                        }
                     }
                 } else null,
                 primaryActionLabel = "설정에서 허용",
                 onSecondaryAction = {
-                    hasExactAlarmPermission = permissionManager.canScheduleExactAlarms()
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                        permissionStates = permissionRepository.checkAllPermissions(DailyDrugPermissions.ALL)
+                    }
                 },
                 secondaryActionLabel = "상태 새로고침"
             )

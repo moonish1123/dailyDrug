@@ -77,9 +77,10 @@ android {
 }
 
 dependencies {
-    // NetworkModule dependency
+    // Module dependencies
     implementation(project(":networkmodule"))
     implementation(project(":llmmodule"))
+    implementation(project(":permissionmodule"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
