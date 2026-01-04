@@ -90,13 +90,15 @@ private class TodayMedicationRemoteViewsFactory(
 
     /**
      * 시간대별로 그룹화하여 위젯 아이템 리스트 생성
-     * 복용 완료한 약은 표시하지 않음
+     * 복용 완료하거나 건너뛴 약은 표시하지 않음
      */
     private fun buildWidgetItems(doses: List<ScheduledDose>): List<WidgetItem> {
         val result = mutableListOf<WidgetItem>()
 
-        // 복용 완료한 약 필터링
-        val pendingDoses = doses.filter { it.status != MedicationStatus.TAKEN }
+        // 복용 완료 및 건너뛴 약 필터링
+        val pendingDoses = doses.filter {
+            it.status != MedicationStatus.TAKEN && it.status != MedicationStatus.SKIPPED
+        }
 
         MedicationTimePeriod.sortedValues().forEach { period ->
             val periodDoses = pendingDoses.filter { dose ->
