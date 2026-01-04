@@ -47,6 +47,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.dailydrug.di.findActivity
 import com.dailydrug.di.getPermissionRepository
 import com.dailydrug.permission.DailyDrugPermissions
 import com.permissionmodule.domain.model.PermissionStatus
@@ -71,8 +72,6 @@ fun SettingsScreen(
         return
     }
 
-    var permissionStates by remember { mutableStateOf<Map<com.permissionmodule.domain.model.Permission, PermissionStatus>>(emptyMap()) }
-    val context = LocalContext.current
     var permissionStates by remember { mutableStateOf<Map<com.permissionmodule.domain.model.Permission, PermissionStatus>>(emptyMap()) }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
