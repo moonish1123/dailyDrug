@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.CalendarToday
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Medication
+import androidx.compose.material.icons.rounded.Psychology
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.AssistChip
@@ -50,7 +51,9 @@ import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -78,11 +81,13 @@ fun MainRoute(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    var llmResponse by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collectLatest { event ->
             when (event) {
                 is MainUiEvent.ShowMessage -> snackbarHostState.showSnackbar(event.message)
+                is MainUiEvent.ShowLlmResponse -> llmResponse = event.text
             }
         }
     }
@@ -98,9 +103,17 @@ fun MainRoute(
         onToggleTaken = viewModel::onToggleTaken,
         onSkipDose = viewModel::onSkip,
         onOpenMedicineDetail = onOpenMedicineDetail,
-        onTestAlarm = viewModel::scheduleTestAlarm,
+        onTestLlm = viewModel::testLlm,
         onBack = onBack
     )
+
+    // LLM 테스트 응답 다이얼로그
+    llmResponse?.let { response ->
+        LlmTestDialog(
+            response = response,
+            onDismiss = { llmResponse = null }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -116,7 +129,7 @@ fun MainScreen(
     onToggleTaken: (Long, MedicationStatus) -> Unit,
     onSkipDose: (Long) -> Unit,
     onOpenMedicineDetail: (Long) -> Unit,
-    onTestAlarm: () -> Unit,
+    onTestLlm: () -> Unit,
     onBack: (() -> Unit)? = null
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -165,11 +178,11 @@ fun MainScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 androidx.compose.material3.SmallFloatingActionButton(
-                    onClick = onTestAlarm,
+                    onClick = onTestLlm,
                     containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                     contentColor = MaterialTheme.colorScheme.onTertiaryContainer
                 ) {
-                    Icon(Icons.Rounded.Schedule, contentDescription = "1분 뒤 테스트 알람")
+                    Icon(Icons.Rounded.Psychology, contentDescription = "LLM 테스트")
                 }
 
                 ExtendedFloatingActionButton(

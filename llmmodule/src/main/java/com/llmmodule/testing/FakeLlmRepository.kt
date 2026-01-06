@@ -1,5 +1,6 @@
 package com.llmmodule.testing
 
+import com.llmmodule.domain.model.LlmProvider
 import com.llmmodule.domain.model.LlmRequest
 import com.llmmodule.domain.model.LlmResponse
 import com.llmmodule.domain.model.LlmResult
@@ -12,7 +13,11 @@ class FakeLlmRepository : LlmRepository {
 
     private val responses = MutableSharedFlow<LlmResult<LlmResponse>>(replay = 1)
 
-    override fun generateText(request: LlmRequest): Flow<LlmResult<LlmResponse>> =
+    override fun generateText(
+        request: LlmRequest,
+        provider: LlmProvider,
+        apiKey: String?
+    ): Flow<LlmResult<LlmResponse>> =
         responses.asSharedFlow()
 
     suspend fun emit(result: LlmResult<LlmResponse>) {

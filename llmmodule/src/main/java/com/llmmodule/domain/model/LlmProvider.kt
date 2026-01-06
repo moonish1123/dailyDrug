@@ -9,11 +9,11 @@ package com.llmmodule.domain.model
 sealed class LlmProvider(val id: String, val displayName: String, val isOnline: Boolean) {
     data object Claude : LlmProvider("claude", "Claude (Anthropic)", true)
     data object Gpt : LlmProvider("gpt", "GPT (OpenAI)", true)
-    data object OpenAI : LlmProvider("openai", "OpenAI", true)
+    data object ZAI : LlmProvider("zai", "Z.AI (GLM)", true)
     data object Local : LlmProvider("local", "Local LLM", false)
 
     companion object {
-        private val providers = listOf(Claude, Gpt, OpenAI, Local)
+        private val providers = listOf(Claude, Gpt, ZAI, Local)
 
         fun getAllProviders(): List<LlmProvider> = providers
 
@@ -21,8 +21,10 @@ sealed class LlmProvider(val id: String, val displayName: String, val isOnline: 
 
         fun getOfflineProviders(): List<LlmProvider> = providers.filter { !it.isOnline }
 
-        fun fromId(id: String?): LlmProvider? =
-            providers.firstOrNull { it.id.equals(id, ignoreCase = true) }
+        fun fromId(id: String?): LlmProvider? {
+            if (id == null) return null
+            return providers.firstOrNull { it.id.equals(id, ignoreCase = true) }
+        }
 
         /**
          * Parse keys stored in the format "provider/actualKey".

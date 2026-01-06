@@ -14,6 +14,8 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * 위젯 리스트 아이템 타입
@@ -62,11 +64,13 @@ private class TodayMedicationRemoteViewsFactory(
 
             val doses = runBlocking {
                 try {
-                    android.util.Log.d(TAG, "📡 Fetching doses from repository...")
-                    val result = medicationRepository.observeScheduledDoses(today)
-                        .firstOrNull()
-                    android.util.Log.d(TAG, "📊 Repository returned: ${result?.size ?: 0} doses")
-                    result
+                    withTimeout(5.seconds) {
+                        android.util.Log.d(TAG, "📡 Fetching doses from repository...")
+                        val result = medicationRepository.observeScheduledDoses(today)
+                            .firstOrNull()
+                        android.util.Log.d(TAG, "📊 Repository returned: ${result?.size ?: 0} doses")
+                        result
+                    }
                 } catch (e: Exception) {
                     android.util.Log.e(TAG, "❌ Error fetching doses", e)
                     emptyList()

@@ -3,7 +3,7 @@ package com.llmmodule.di
 import com.llmmodule.data.provider.LlmService
 import com.llmmodule.data.provider.claude.ClaudeLlmService
 import com.llmmodule.data.provider.gpt.GptLlmService
-import com.llmmodule.data.provider.openai.OpenAiLlmService
+import com.llmmodule.data.provider.zai.ZaiLlmService
 import com.llmmodule.data.repository.LlmRepositoryImpl
 import com.llmmodule.domain.repository.LlmRepository
 import com.networkmodule.api.NetworkClientFactory
@@ -37,8 +37,8 @@ object LlmProviderModule {
     @Provides
     @Singleton
     @IntoSet
-    fun provideOpenAiService(factory: NetworkClientFactory): LlmService =
-        OpenAiLlmService(factory)
+    fun provideZaiService(factory: NetworkClientFactory): LlmService =
+        ZaiLlmService(factory)
 
     // Local LLM service temporarily disabled due to compilation issues
     // @Provides

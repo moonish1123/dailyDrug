@@ -9,10 +9,9 @@ data class LlmSettings(
     val selectedProvider: LlmProvider,
     val claudeApiKey: String = "",
     val gptApiKey: String = "",
-    val openAiApiKey: String = "",
+    val zaiApiKey: String = "",
     val localLlmEnabled: Boolean = true,
-    val autoSwitchToOffline: Boolean = true,
-    val preferredOnlineProvider: LlmProvider = LlmProvider.Claude
+    val autoSwitchToOffline: Boolean = true
 ) {
     /**
      * 현재 선택된 프로바이더의 API 키를 반환
@@ -21,7 +20,7 @@ data class LlmSettings(
         return when (selectedProvider) {
             is LlmProvider.Claude -> claudeApiKey.takeIf { it.isNotBlank() }
             is LlmProvider.Gpt -> gptApiKey.takeIf { it.isNotBlank() }
-            is LlmProvider.OpenAI -> openAiApiKey.takeIf { it.isNotBlank() }
+            is LlmProvider.ZAI -> zaiApiKey.takeIf { it.isNotBlank() }
             is LlmProvider.Local -> null
         }
     }
@@ -33,7 +32,7 @@ data class LlmSettings(
         return when (provider) {
             is LlmProvider.Claude -> copy(claudeApiKey = apiKey)
             is LlmProvider.Gpt -> copy(gptApiKey = apiKey)
-            is LlmProvider.OpenAI -> copy(openAiApiKey = apiKey)
+            is LlmProvider.ZAI -> copy(zaiApiKey = apiKey)
             is LlmProvider.Local -> this
         }
     }
@@ -56,7 +55,7 @@ data class LlmSettings(
 
         if (claudeApiKey.isNotBlank()) providers.add(LlmProvider.Claude)
         if (gptApiKey.isNotBlank()) providers.add(LlmProvider.Gpt)
-        if (openAiApiKey.isNotBlank()) providers.add(LlmProvider.OpenAI)
+        if (zaiApiKey.isNotBlank()) providers.add(LlmProvider.ZAI)
 
         return providers
     }
@@ -70,10 +69,9 @@ data class LlmSettings(
             - Selected Provider: ${selectedProvider.displayName}
             - Claude API Key: ${if (claudeApiKey.isNotBlank()) "***" else "Not Set"}
             - GPT API Key: ${if (gptApiKey.isNotBlank()) "***" else "Not Set"}
-            - OpenAI API Key: ${if (openAiApiKey.isNotBlank()) "***" else "Not Set"}
+            - Z.AI API Key: ${if (zaiApiKey.isNotBlank()) "***" else "Not Set"}
             - Local LLM Enabled: $localLlmEnabled
             - Auto Switch: $autoSwitchToOffline
-            - Preferred Online: ${preferredOnlineProvider.displayName}
             - Is Valid: ${isValid()}
             - Available Online: ${getAvailableOnlineProviders().map { it.displayName }}
         """.trimIndent()
@@ -94,11 +92,13 @@ data class LlmSettingsUiState(
     val testConnectionInProgress: Boolean = false,
     val testConnectionResult: ConnectionTestResult? = null
 ) {
-    fun isApiKeyConfigured(provider: LlmProvider): Boolean {
+    fun isApiKeyConfigured(provider: LlmProvider?): Boolean {
+        if (provider == null) return false
+
         return when (provider) {
             is LlmProvider.Claude -> settings.claudeApiKey.isNotBlank()
             is LlmProvider.Gpt -> settings.gptApiKey.isNotBlank()
-            is LlmProvider.OpenAI -> settings.openAiApiKey.isNotBlank()
+            is LlmProvider.ZAI -> settings.zaiApiKey.isNotBlank()
             is LlmProvider.Local -> true
         }
     }

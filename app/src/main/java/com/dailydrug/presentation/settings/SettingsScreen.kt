@@ -113,48 +113,43 @@ fun SettingsScreen(
             PermissionCard(
                 icon = Icons.Rounded.Notifications,
                 title = "알림 권한",
-                statusGranted = permissionStates[DailyDrugPermissions.POST_NOTIFICATIONS] is PermissionStatus.Granted,
-                statusLabel = if (permissionStates[DailyDrugPermissions.POST_NOTIFICATIONS] is PermissionStatus.Granted) "허용됨" else "미허용",
-                description = "약 복용 알림을 정상적으로 받으려면 알림 권한이 필요합니다.",
-                onPrimaryAction = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                    permissionStates[DailyDrugPermissions.POST_NOTIFICATIONS] !is PermissionStatus.Granted) {
-                    {
+                statusGranted = permissionStates[DailyDrugPermissions.POST_NOTIFICATIONS] is PermissionStatus.Granted &&
+                    permissionStates[DailyDrugPermissions.SCHEDULE_EXACT_ALARM] is PermissionStatus.Granted,
+                statusLabel = if (permissionStates[DailyDrugPermissions.POST_NOTIFICATIONS] is PermissionStatus.Granted &&
+                    permissionStates[DailyDrugPermissions.SCHEDULE_EXACT_ALARM] is PermissionStatus.Granted) "모두 허용됨"
+                else if (permissionStates[DailyDrugPermissions.POST_NOTIFICATIONS] is PermissionStatus.Granted ||
+                    permissionStates[DailyDrugPermissions.SCHEDULE_EXACT_ALARM] is PermissionStatus.Granted) "부분 허용"
+                else "미허용",
+                description = "알림 및 정확한 알람 권한이 필요합니다.",
+                onPrimaryAction = {
+                    // 1. POST_NOTIFICATIONS 요청
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        permissionStates[DailyDrugPermissions.POST_NOTIFICATIONS] !is PermissionStatus.Granted) {
                         notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                     }
-                } else null,
-                primaryActionLabel = "권한 요청",
-                onSecondaryAction = {
-                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-                        permissionStates = permissionRepository.checkAllPermissions(DailyDrugPermissions.ALL)
-                    }
-                },
-                secondaryActionLabel = "상태 새로고침"
-            )
-
-            PermissionCard(
-                icon = Icons.Rounded.Alarm,
-                title = "정확한 알람",
-                statusGranted = permissionStates[DailyDrugPermissions.SCHEDULE_EXACT_ALARM] is PermissionStatus.Granted,
-                statusLabel = if (permissionStates[DailyDrugPermissions.SCHEDULE_EXACT_ALARM] is PermissionStatus.Granted) "허용됨" else "미허용",
-                description = "정확한 알람 권한을 허용하면 예정된 시간에 정확히 알림을 받을 수 있습니다.",
-                onPrimaryAction = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                    permissionStates[DailyDrugPermissions.SCHEDULE_EXACT_ALARM] !is PermissionStatus.Granted) {
-                    {
-                        // Open settings for exact alarm permission
+                    // 2. SCHEDULE_EXACT_ALARM 설정으로 이동
+                    else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                        permissionStates[DailyDrugPermissions.SCHEDULE_EXACT_ALARM] !is PermissionStatus.Granted) {
                         DailyDrugPermissions.SCHEDULE_EXACT_ALARM.settingsAction?.let { action ->
                             context.startActivity(android.content.Intent(action).apply {
                                 data = android.net.Uri.parse("package:${context.packageName}")
                             })
                         }
                     }
-                } else null,
-                primaryActionLabel = "설정에서 허용",
+                },
+                primaryActionLabel = when {
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    permissionStates[DailyDrugPermissions.POST_NOTIFICATIONS] !is PermissionStatus.Granted -> "알림 권한"
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                    permissionStates[DailyDrugPermissions.SCHEDULE_EXACT_ALARM] !is PermissionStatus.Granted -> "정확한 알람"
+                    else -> null
+                },
                 onSecondaryAction = {
                     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
                         permissionStates = permissionRepository.checkAllPermissions(DailyDrugPermissions.ALL)
                     }
                 },
-                secondaryActionLabel = "상태 새로고침"
+                secondaryActionLabel = "새로고침"
             )
 
             // LLM 설정 카드

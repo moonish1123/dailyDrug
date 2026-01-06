@@ -11,6 +11,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,6 +31,10 @@ import com.dailydrug.data.model.LlmSettingsUiState
 import com.dailydrug.presentation.llm.LlmSettingsViewModel
 import com.llmmodule.domain.model.LlmProvider
 import kotlinx.coroutines.launch
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 
 /**
  * LLM 설정 화면
@@ -45,17 +50,32 @@ fun LlmSettingsScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val coroutineScope = rememberCoroutineScope()
 
+    val snackbarHostState = remember { SnackbarHostState() }
+
     LaunchedEffect(uiState.error) {
-        if (uiState.error != null) {
-            // 에러 메시지를 표시하거나 Toast로 띄울 수 있음
+        uiState.error?.let { error ->
+            val result = snackbarHostState.showSnackbar(
+                message = error,
+                actionLabel = "닫기",
+                duration = SnackbarDuration.Short
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                viewModel.clearError()
+            }
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
+    Scaffold(
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState)
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp)
+        ) {
         // 상단 바
         Row(
             modifier = Modifier
@@ -81,39 +101,29 @@ fun LlmSettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
                 .verticalScroll(rememberScrollState())
+                .padding(bottom = 16.dp)
         ) {
-            // 프로바이더 선택 섹션
-            ProviderSelectionSection(
-                selectedProvider = uiState.settings.selectedProvider,
-                onProviderSelected = { provider ->
-                    viewModel.onEvent(LlmSettingsEvent.ProviderSelected(provider))
-                },
-                modifier = Modifier.padding(vertical = 16.dp)
+            Text(
+                text = "AI 서비스 제공업체를 선택하고 API 키를 설정하세요",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 8.dp)
             )
 
-            // API 키 관리 섹션
-            ApiKeyManagementSection(
-                uiState = uiState,
-                onShowApiKeyDialog = { provider ->
-                    viewModel.onEvent(LlmSettingsEvent.ShowApiKeyDialog(provider))
-                },
-                onTestConnection = { provider ->
-                    viewModel.onEvent(LlmSettingsEvent.TestConnection(provider))
-                },
-                onClearTestResult = { viewModel.clearTestResult() },
-                modifier = Modifier.padding(vertical = 16.dp)
-            )
-
-            // Local LLM 설정 섹션 (일시적으로 비활성화)
-            // LocalLlmSettingsSection(
-            //     localLlmEnabled = uiState.settings.localLlmEnabled,
-            //     autoSwitchToOffline = uiState.settings.autoSwitchToOffline,
-            //     onLocalLlmToggled = viewModel::toggleLocalLlmEnabled,
-            //     onAutoSwitchToggled = viewModel::toggleAutoSwitchToOffline,
-            //     modifier = Modifier.padding(vertical = 16.dp)
-            // )
+            // 프로바이더 선택 및 API 키 관리 (통합)
+            LlmProvider.getAllProviders().forEach { provider ->
+                ProviderCard(
+                    provider = provider,
+                    isSelected = uiState.settings.selectedProvider == provider,
+                    hasApiKey = uiState.isApiKeyConfigured(provider),
+                    onClick = {
+                        viewModel.onEvent(LlmSettingsEvent.ProviderSelected(provider))
+                    },
+                    onSetApiKey = { viewModel.onEvent(LlmSettingsEvent.ShowApiKeyDialog(provider)) }
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
         }
 
         // 저장 버튼
@@ -138,11 +148,12 @@ fun LlmSettingsScreen(
     if (uiState.showApiKeyDialog && uiState.editingProvider != null) {
         ApiKeyDialog(
             provider = uiState.editingProvider!!,
-            currentApiKey = when (uiState.editingProvider) {
+            currentApiKey = when (val provider = uiState.editingProvider) {
                 is LlmProvider.Claude -> uiState.settings.claudeApiKey
                 is LlmProvider.Gpt -> uiState.settings.gptApiKey
-                is LlmProvider.OpenAI -> uiState.settings.openAiApiKey
-                else -> ""
+                is LlmProvider.ZAI -> uiState.settings.zaiApiKey
+                is LlmProvider.Local -> ""
+                else -> "" // shouldn't happen
             },
             onDismiss = { viewModel.onEvent(LlmSettingsEvent.DismissDialog) },
             onSave = { apiKey ->
@@ -150,20 +161,6 @@ fun LlmSettingsScreen(
             }
         )
     }
-
-    // 에러 메시지 스낵바
-    val error = uiState.error
-    if (error != null) {
-        Snackbar(
-            modifier = Modifier.padding(16.dp),
-            action = {
-                TextButton(onClick = { viewModel.clearError() }) {
-                    Text("닫기")
-                }
-            }
-        ) {
-            Text(error)
-        }
     }
 }
 
@@ -615,14 +612,137 @@ private fun ApiKeyDialog(
 }
 
 /**
+ * 통합 프로바이더 카드 (선택 + API 키 설정)
+ */
+@Composable
+private fun ProviderCard(
+    provider: LlmProvider,
+    isSelected: Boolean,
+    hasApiKey: Boolean,
+    onClick: () -> Unit,
+    onSetApiKey: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surface
+            }
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            // Provider selection row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectable(
+                        selected = isSelected,
+                        onClick = onClick
+                    ),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Provider icon
+                Icon(
+                    imageVector = getProviderIcon(provider),
+                    contentDescription = provider.displayName,
+                    tint = if (isSelected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                // Provider info
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = provider.displayName,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isSelected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        }
+                    )
+
+                    Text(
+                        text = getProviderDescription(provider),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // Radio button for selection
+                RadioButton(
+                    selected = isSelected,
+                    onClick = onClick
+                )
+            }
+
+            // API Key status and set button (for online providers)
+            if (provider.isOnline) {
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // API Key status
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (hasApiKey) Icons.Default.CheckCircle else Icons.Default.Error,
+                            contentDescription = null,
+                            tint = if (hasApiKey) Color.Green else Color.Red,
+                            modifier = Modifier.size(20.dp)
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Text(
+                            text = if (hasApiKey) "API 키 설정됨" else "API 키 필요",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (hasApiKey) Color.Green else Color.Red
+                        )
+                    }
+
+                    // Set API Key button
+                    OutlinedButton(
+                        onClick = onSetApiKey
+                    ) {
+                        Icon(
+                            Icons.Default.Key,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("API 키 설정", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
  * 프로바이더별 아이콘 반환
  */
 private fun getProviderIcon(provider: LlmProvider): ImageVector {
     return when (provider) {
         is LlmProvider.Claude -> Icons.Default.CloudQueue
         is LlmProvider.Gpt -> Icons.Default.Chat
-        is LlmProvider.OpenAI -> Icons.Default.SmartToy
+        is LlmProvider.ZAI -> Icons.Filled.Psychology
         is LlmProvider.Local -> Icons.Default.Memory
+        else -> Icons.Default.Help
     }
 }
 
@@ -633,7 +753,8 @@ private fun getProviderDescription(provider: LlmProvider): String {
     return when (provider) {
         is LlmProvider.Claude -> "Anthropic Claude (인터넷 필요)"
         is LlmProvider.Gpt -> "OpenAI GPT (인터넷 필요)"
-        is LlmProvider.OpenAI -> "OpenAI API (인터넷 필요)"
+        is LlmProvider.ZAI -> "Z.AI GLM (인터넷 필요)"
         is LlmProvider.Local -> "오프라인 LLM (인터넷 불필요)"
+        else -> "알 수 없는 프로바이더"
     }
 }

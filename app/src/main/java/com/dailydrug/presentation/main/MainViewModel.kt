@@ -2,6 +2,7 @@ package com.dailydrug.presentation.main
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dailydrug.data.repository.LlmSettingsRepository
 import com.dailydrug.domain.model.ScheduledDose
 import com.dailydrug.domain.model.MedicationStatus
 import com.dailydrug.domain.model.MedicationTimePeriod
@@ -9,6 +10,9 @@ import com.dailydrug.domain.usecase.GetTodayMedicationsUseCase
 import com.dailydrug.domain.usecase.RecordMedicationUseCase
 import com.dailydrug.domain.usecase.ScheduleNotificationUseCase
 import com.dailydrug.domain.model.groupByTimePeriod
+import com.llmmodule.domain.model.LlmProvider
+import com.llmmodule.domain.model.LlmRequest
+import com.llmmodule.domain.usecase.GenerateTextUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -19,6 +23,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -30,7 +35,9 @@ class MainViewModel @Inject constructor(
     private val getTodayMedicationsUseCase: GetTodayMedicationsUseCase,
     private val recordMedicationUseCase: RecordMedicationUseCase,
     private val scheduleNotificationUseCase: ScheduleNotificationUseCase,
-    private val createScheduleUseCase: com.dailydrug.domain.usecase.CreateScheduleUseCase
+    private val createScheduleUseCase: com.dailydrug.domain.usecase.CreateScheduleUseCase,
+    private val generateTextUseCase: GenerateTextUseCase,
+    private val llmSettingsRepository: LlmSettingsRepository
 ) : ViewModel() {
 
     private val selectedDate = MutableStateFlow(LocalDate.now())
@@ -67,28 +74,53 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun scheduleTestAlarm() {
+    fun testLlm() {
         viewModelScope.launch {
             runCatching {
-                val now = LocalDateTime.now()
-                val testTime = now.plusMinutes(1).toLocalTime()
-                val params = com.dailydrug.domain.model.CreateScheduleParams(
-                    name = "테스트 알람",
-                    dosage = "1정",
-                    color = 0xFFE91E63.toInt(), // Pink color for test
-                    memo = "1분 뒤 알람 테스트",
-                    startDate = LocalDate.now(),
-                    endDate = LocalDate.now(),
-                    timeSlots = listOf(testTime),
-                    takeDays = 1,
-                    restDays = 0
+                // 1. API Key 확인
+                val settings = llmSettingsRepository.getSettings().first()
+                    ?: throw IllegalStateException("LLM settings not available")
+
+                val apiKey = when (settings.selectedProvider) {
+                    is LlmProvider.ZAI -> settings.zaiApiKey
+                    is LlmProvider.Claude -> settings.claudeApiKey
+                    is LlmProvider.Gpt -> settings.gptApiKey
+                    is LlmProvider.Local -> null
+                    else -> null
+                }
+
+                if (apiKey.isNullOrBlank()) {
+                    _events.emit(MainUiEvent.ShowMessage("API Key가 설정되지 않았습니다. 설정에서 API Key를 입력해주세요."))
+                    return@launch
+                }
+
+                // 2. 고정된 질문 전송
+                val request = LlmRequest(
+                    prompt = "지구가 속한 계의 특징에 대해 1000자로 설명해줘",
+                    systemInstructions = emptyList(),
+                    temperature = 0.7,
+                    maxOutputTokens = 1000
                 )
-                createScheduleUseCase(params)
-                _events.emit(MainUiEvent.ShowMessage("1분 뒤 울리는 테스트 알람을 설정했어요."))
-                // 강제로 오늘 날짜 데이터 갱신을 위해 날짜 재선택 트리거 (필요하다면)
-                onToday() 
-            }.onFailure {
-                _events.emit(MainUiEvent.ShowMessage("테스트 알람 설정에 실패했어요."))
+
+                // 3. LLM 호출
+                generateTextUseCase(request, settings.selectedProvider, apiKey).collect { result ->
+                    when (result) {
+                        is com.llmmodule.domain.model.LlmResult.Success -> {
+                            _events.emit(MainUiEvent.ShowLlmResponse(result.data.text))
+                        }
+                        is com.llmmodule.domain.model.LlmResult.Error -> {
+                            val errorMessage = when (result.error) {
+                                is com.llmmodule.domain.model.LlmError.ApiKeyMissing -> "API Key가 필요합니다"
+                                is com.llmmodule.domain.model.LlmError.Network -> "네트워크 오류"
+                                else -> "LLM 오류: ${result.error.message}"
+                            }
+                            _events.emit(MainUiEvent.ShowMessage(errorMessage))
+                        }
+                    }
+                }
+            }.onFailure { e ->
+                e.printStackTrace()
+                _events.emit(MainUiEvent.ShowMessage("LLM 호출 실패: ${e.message}"))
             }
         }
     }
@@ -177,6 +209,7 @@ class MainViewModel @Inject constructor(
 
 sealed interface MainUiEvent {
     data class ShowMessage(val message: String) : MainUiEvent
+    data class ShowLlmResponse(val text: String) : MainUiEvent
 }
 
 /**

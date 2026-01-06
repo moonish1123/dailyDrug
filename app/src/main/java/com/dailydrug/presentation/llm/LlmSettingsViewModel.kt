@@ -102,11 +102,6 @@ class LlmSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 settingsRepository.updateSelectedProvider(provider)
-
-                // 온라인 프로바이더를 선택한 경우 선호하는 온라인 프로바이더로도 저장
-                if (provider.isOnline) {
-                    settingsRepository.updatePreferredOnlineProvider(provider)
-                }
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(error = "프로바이더 선택 실패: ${e.message}")
@@ -163,7 +158,7 @@ class LlmSettingsViewModel @Inject constructor(
                 )
 
                 val responseTime = measureTimeMillis {
-                    val result = generateTextUseCase.invoke(request)
+                    val result = generateTextUseCase.invoke(request, provider, apiKey)
 
                     when (result) {
                         is LlmResult.Success<LlmResponse> -> {

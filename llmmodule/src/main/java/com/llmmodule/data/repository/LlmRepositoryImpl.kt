@@ -16,25 +16,25 @@ internal class LlmRepositoryImpl(
     services: @JvmSuppressWildcards Set<LlmService>
 ) : LlmRepository {
 
-    private val serviceMap: Map<LlmProvider, LlmService> = services.associateBy { it.provider }
+    private val serviceMap: Map<String, LlmService> = services.associateBy { it.provider.id }
 
-    override fun generateText(request: LlmRequest): Flow<LlmResult<LlmResponse>> = flow {
-        // For now, default to Claude service
-        // TODO: Use AppLlmConfiguration when configuration is fully integrated
-        val activeProvider = LlmProvider.Claude
+    override fun generateText(request: LlmRequest, provider: LlmProvider, apiKey: String?): Flow<LlmResult<LlmResponse>> = flow {
+        // Validate API key first
+        if (apiKey.isNullOrBlank()) {
+            emit(LlmResult.Error(LlmError.ApiKeyMissing(provider)))
+            return@flow
+        }
 
-        val service = serviceMap[activeProvider]
+        // Select the service for the specified provider
+        val service = serviceMap[provider.id]
             ?: run {
                 emit(
                     LlmResult.Error(
-                        LlmError.Provider(activeProvider, "No service registered for provider")
+                        LlmError.Provider(provider, "No LLM service registered for ${provider.displayName}")
                     )
                 )
                 return@flow
             }
-
-        // TODO: Get API key from AppLlmConfiguration
-        val apiKey = ""
 
         emitAll(service.generateText(request, apiKey))
     }.catch { throwable ->

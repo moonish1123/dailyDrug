@@ -29,30 +29,25 @@ class LlmSettingsRepository @Inject constructor(
     private val selectedProviderKey = stringPreferencesKey("selected_provider")
     private val claudeApiKeyKey = stringPreferencesKey("claude_api_key")
     private val gptApiKeyKey = stringPreferencesKey("gpt_api_key")
-    private val openAiApiKeyKey = stringPreferencesKey("openai_api_key")
+    private val zaiApiKeyKey = stringPreferencesKey("zai_api_key")
     private val localLlmEnabledKey = booleanPreferencesKey("local_llm_enabled")
     private val autoSwitchToOfflineKey = booleanPreferencesKey("auto_switch_to_offline")
-    private val preferredOnlineProviderKey = stringPreferencesKey("preferred_online_provider")
 
     /**
      * 현재 LLM 설정을 Flow로 반환
      */
     fun getSettings(): Flow<LlmSettings> {
         return context.dataStore.data.map { preferences ->
-            val selectedProviderString = preferences[selectedProviderKey] ?: LlmProvider.Gpt.id
+            val selectedProviderString = preferences[selectedProviderKey]
             val selectedProvider = LlmProvider.fromId(selectedProviderString) ?: LlmProvider.Gpt
-
-            val preferredOnlineProviderString = preferences[preferredOnlineProviderKey] ?: LlmProvider.Gpt.id
-            val preferredOnlineProvider = LlmProvider.fromId(preferredOnlineProviderString) ?: LlmProvider.Gpt
 
             LlmSettings(
                 selectedProvider = selectedProvider,
                 claudeApiKey = preferences[claudeApiKeyKey] ?: "",
                 gptApiKey = preferences[gptApiKeyKey] ?: "",
-                openAiApiKey = preferences[openAiApiKeyKey] ?: "",
+                zaiApiKey = preferences[zaiApiKeyKey] ?: "",
                 localLlmEnabled = preferences[localLlmEnabledKey] ?: false,
-                autoSwitchToOffline = preferences[autoSwitchToOfflineKey] ?: false,
-                preferredOnlineProvider = preferredOnlineProvider
+                autoSwitchToOffline = preferences[autoSwitchToOfflineKey] ?: false
             )
         }
     }
@@ -74,7 +69,7 @@ class LlmSettingsRepository @Inject constructor(
             when (provider) {
                 is LlmProvider.Claude -> preferences[claudeApiKeyKey] = apiKey
                 is LlmProvider.Gpt -> preferences[gptApiKeyKey] = apiKey
-                is LlmProvider.OpenAI -> preferences[openAiApiKeyKey] = apiKey
+                is LlmProvider.ZAI -> preferences[zaiApiKeyKey] = apiKey
                 is LlmProvider.Local -> {
                     // Local은 API 키가 필요 없음
                 }
@@ -93,8 +88,8 @@ class LlmSettingsRepository @Inject constructor(
             is LlmProvider.Gpt -> {
                 context.dataStore.data.map { it[gptApiKeyKey] ?: "" }.first()
             }
-            is LlmProvider.OpenAI -> {
-                context.dataStore.data.map { it[openAiApiKeyKey] ?: "" }.first()
+            is LlmProvider.ZAI -> {
+                context.dataStore.data.map { it[zaiApiKeyKey] ?: "" }.first()
             }
             is LlmProvider.Local -> {
                 ""
@@ -121,17 +116,6 @@ class LlmSettingsRepository @Inject constructor(
     }
 
     /**
-     * 선호하는 온라인 프로바이더 업데이트
-     */
-    suspend fun updatePreferredOnlineProvider(provider: LlmProvider) {
-        if (provider.isOnline) {
-            context.dataStore.edit { preferences ->
-                preferences[preferredOnlineProviderKey] = provider.id
-            }
-        }
-    }
-
-    /**
      * 모든 설정을 한 번에 업데이트
      */
     suspend fun updateSettings(settings: LlmSettings) {
@@ -139,10 +123,9 @@ class LlmSettingsRepository @Inject constructor(
             preferences[selectedProviderKey] = settings.selectedProvider.id
             preferences[claudeApiKeyKey] = settings.claudeApiKey
             preferences[gptApiKeyKey] = settings.gptApiKey
-            preferences[openAiApiKeyKey] = settings.openAiApiKey
+            preferences[zaiApiKeyKey] = settings.zaiApiKey
             preferences[localLlmEnabledKey] = settings.localLlmEnabled
             preferences[autoSwitchToOfflineKey] = settings.autoSwitchToOffline
-            preferences[preferredOnlineProviderKey] = settings.preferredOnlineProvider.id
         }
     }
 
@@ -162,10 +145,9 @@ class LlmSettingsRepository @Inject constructor(
                 "selected_provider" to (preferences[selectedProviderKey] ?: ""),
                 "claude_api_key" to (preferences[claudeApiKeyKey] ?: ""),
                 "gpt_api_key" to (preferences[gptApiKeyKey] ?: ""),
-                "openai_api_key" to (preferences[openAiApiKeyKey] ?: ""),
+                "zai_api_key" to (preferences[zaiApiKeyKey] ?: ""),
                 "local_llm_enabled" to (preferences[localLlmEnabledKey]?.toString() ?: "true"),
-                "auto_switch_to_offline" to (preferences[autoSwitchToOfflineKey]?.toString() ?: "true"),
-                "preferred_online_provider" to (preferences[preferredOnlineProviderKey] ?: "")
+                "auto_switch_to_offline" to (preferences[autoSwitchToOfflineKey]?.toString() ?: "true")
             )
         }.first()
     }
@@ -178,10 +160,9 @@ class LlmSettingsRepository @Inject constructor(
             preferences[selectedProviderKey] = exportedSettings["selected_provider"] ?: LlmProvider.Gpt.id
             preferences[claudeApiKeyKey] = exportedSettings["claude_api_key"] ?: ""
             preferences[gptApiKeyKey] = exportedSettings["gpt_api_key"] ?: ""
-            preferences[openAiApiKeyKey] = exportedSettings["openai_api_key"] ?: ""
+            preferences[zaiApiKeyKey] = exportedSettings["zai_api_key"] ?: ""
             preferences[localLlmEnabledKey] = (exportedSettings["local_llm_enabled"] ?: "false").toBoolean()
             preferences[autoSwitchToOfflineKey] = (exportedSettings["auto_switch_to_offline"] ?: "false").toBoolean()
-            preferences[preferredOnlineProviderKey] = exportedSettings["preferred_online_provider"] ?: LlmProvider.Gpt.id
         }
     }
 }
@@ -194,9 +175,8 @@ private fun getDefaultLlmSettings(): LlmSettings {
         selectedProvider = LlmProvider.Gpt,
         claudeApiKey = "",
         gptApiKey = "",
-        openAiApiKey = "",
+        zaiApiKey = "",
         localLlmEnabled = false,
-        autoSwitchToOffline = false,
-        preferredOnlineProvider = LlmProvider.Gpt
+        autoSwitchToOffline = false
     )
 }

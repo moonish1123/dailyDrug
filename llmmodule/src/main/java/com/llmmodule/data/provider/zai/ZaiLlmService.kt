@@ -1,6 +1,8 @@
-package com.llmmodule.data.provider.openai
+package com.llmmodule.data.provider.zai
 
 import com.llmmodule.data.provider.LlmService
+import com.llmmodule.data.provider.zai.model.ZaiChatCompletionsRequest
+import com.llmmodule.data.provider.zai.model.ZaiMessage
 import com.llmmodule.domain.model.LlmError
 import com.llmmodule.domain.model.LlmProvider
 import com.llmmodule.domain.model.LlmRequest
@@ -10,27 +12,22 @@ import com.networkmodule.api.NetworkClientFactory
 import com.networkmodule.api.NetworkConfig
 import com.networkmodule.api.createService
 import java.io.IOException
-import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlin.collections.buildList
 
-private const val OPENAI_BASE_URL = "https://api.openai.com/"
-private const val DEFAULT_MODEL = "gpt-3.5-turbo"
-private const val DEFAULT_MAX_TOKENS = 1024
+private const val ZAI_BASE_URL = "https://open.bigmodel.cn/"
+private const val DEFAULT_MODEL = "glm-4.7"
 
-/**
- * OpenAI API service implementation
- * Provides access to GPT models via OpenAI's official API
- */
-internal class OpenAiLlmService @Inject constructor(
+internal class ZaiLlmService @Inject constructor(
     networkClientFactory: NetworkClientFactory
 ) : LlmService {
 
-    override val provider: LlmProvider = LlmProvider.Gpt
+    override val provider: LlmProvider = LlmProvider.ZAI
 
-    private val api: OpenAiApiService = networkClientFactory.createService<OpenAiApiService>(
-        baseUrl = OPENAI_BASE_URL,
+    private val api: ZaiApiService = networkClientFactory.createService<ZaiApiService>(
+        baseUrl = ZAI_BASE_URL,
         config = NetworkConfig(
             readTimeoutSeconds = 60,
             writeTimeoutSeconds = 60
@@ -43,47 +40,42 @@ internal class OpenAiLlmService @Inject constructor(
             return@flow
         }
 
-        val systemText = request.systemInstructions
-            .takeIf { it.isNotEmpty() }
-            ?.joinToString(separator = "\n")
-
-        val messages = mutableListOf<OpenAiMessage>()
-
-        // Add system message if present
-        systemText?.let {
-            messages.add(OpenAiMessage(role = "system", content = it))
+        val messages = buildList {
+            request.systemInstructions.forEach { instruction ->
+                add(ZaiMessage(role = "system", content = instruction))
+            }
+            add(ZaiMessage(role = "user", content = request.prompt))
         }
-
-        // Add user message
-        messages.add(OpenAiMessage(role = "user", content = request.prompt))
-
-        val maxTokens = request.maxOutputTokens?.takeIf { it > 0 } ?: DEFAULT_MAX_TOKENS
 
         try {
             val response = api.createChatCompletion(
                 authorization = "Bearer $apiKey",
-                request = OpenAiRequest(
+                request = ZaiChatCompletionsRequest(
                     model = DEFAULT_MODEL,
                     messages = messages,
-                    maxTokens = maxTokens,
-                    temperature = request.temperature ?: 0.7
+                    maxTokens = request.maxOutputTokens,
+                    temperature = request.temperature?.toDouble(),
+                    topP = request.topP?.toDouble()
                 )
             )
 
             if (response.isSuccessful) {
                 val body = response.body()
                 if (body == null) {
-                    emit(LlmResult.Error(LlmError.Provider(provider, "OpenAI response body was empty")))
+                    emit(
+                        LlmResult.Error(
+                            LlmError.Provider(provider, "Z.AI response body was empty")
+                        )
+                    )
                 } else {
-                    val content = body.choices.firstOrNull()?.message?.content
-                        ?.takeIf { it.isNotBlank() }
-
-                    if (content == null) {
+                    val message = body.choices.firstOrNull()?.message
+                    val text = message?.content
+                    if (text.isNullOrBlank()) {
                         emit(
                             LlmResult.Error(
                                 LlmError.Provider(
                                     provider = provider,
-                                    message = "OpenAI response did not contain text"
+                                    message = "Z.AI response did not contain text"
                                 )
                             )
                         )
@@ -98,7 +90,7 @@ internal class OpenAiLlmService @Inject constructor(
                         emit(
                             LlmResult.Success(
                                 LlmResponse(
-                                    text = content.trim(),
+                                    text = text,
                                     provider = provider,
                                     usage = usage,
                                     raw = body
@@ -115,63 +107,17 @@ internal class OpenAiLlmService @Inject constructor(
                         LlmError.Provider(
                             provider = provider,
                             message = errorBody?.takeIf { it.isNotBlank() }
-                                ?: "OpenAI request failed with HTTP $code"
+                                ?: "Z.AI request failed with HTTP $code"
                         )
                     )
                 )
             }
         } catch (io: IOException) {
             emit(LlmResult.Error(LlmError.Network(io.message ?: "Network error", io)))
-        } catch (cancellation: CancellationException) {
+        } catch (cancellation: kotlinx.coroutines.CancellationException) {
             throw cancellation
         } catch (throwable: Throwable) {
             emit(LlmResult.Error(LlmError.Unknown(throwable.message ?: "Unknown error", throwable)))
         }
     }
 }
-
-// OpenAI API Data Classes
-@kotlinx.serialization.Serializable
-data class OpenAiRequest(
-    val model: String,
-    val messages: List<OpenAiMessage>,
-    @kotlinx.serialization.SerialName("max_tokens")
-    val maxTokens: Int,
-    val temperature: Double? = null,
-    val stream: Boolean = false
-)
-
-@kotlinx.serialization.Serializable
-data class OpenAiMessage(
-    val role: String,
-    val content: String
-)
-
-@kotlinx.serialization.Serializable
-data class OpenAiResponse(
-    val id: String,
-    @kotlinx.serialization.SerialName("object")
-    val objectType: String,
-    val created: Long,
-    val model: String,
-    val choices: List<OpenAiChoice>,
-    val usage: OpenAiUsage?
-)
-
-@kotlinx.serialization.Serializable
-data class OpenAiChoice(
-    val index: Int,
-    val message: OpenAiMessage,
-    @kotlinx.serialization.SerialName("finish_reason")
-    val finishReason: String
-)
-
-@kotlinx.serialization.Serializable
-data class OpenAiUsage(
-    @kotlinx.serialization.SerialName("prompt_tokens")
-    val promptTokens: Int,
-    @kotlinx.serialization.SerialName("completion_tokens")
-    val completionTokens: Int,
-    @kotlinx.serialization.SerialName("total_tokens")
-    val totalTokens: Int
-)
