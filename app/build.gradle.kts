@@ -81,6 +81,8 @@ dependencies {
     implementation(project(":networkmodule"))
     implementation(project(":llmmodule"))
     implementation(project(":permissionmodule"))
+    implementation(project(":ocrmodule"))
+    implementation(project(":photopicker"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -102,6 +104,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.datastore.preferences)
     implementation(libs.google.material)
+    // Coil for image loading
+    implementation(libs.coil.compose)
     ksp(libs.hilt.compiler)
     ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)

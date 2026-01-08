@@ -24,6 +24,8 @@ mockk = "1.13.8"
 okhttpMockWebServer = "4.12.0"
 turbine = "1.0.0"
 datastore = "1.1.1"
+androidx-camera = "1.3.4"
+coil = "2.6.0"
 
 
 
@@ -78,4 +80,10 @@ okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver",
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 mlkit-text-recognition-korean = { group = "com.google.mlkit", name = "text-recognition-korean", version = "16.0.0" }
+# CameraX
+androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "androidx-camera" }
+androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "androidx-camera" }
+androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "androidx-camera" }
+# Coil
+coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 

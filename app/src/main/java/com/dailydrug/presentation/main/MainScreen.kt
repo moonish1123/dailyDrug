@@ -82,6 +82,7 @@ fun MainRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var llmResponse by remember { mutableStateOf<String?>(null) }
+    var showOcrDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collectLatest { event ->
@@ -104,6 +105,7 @@ fun MainRoute(
         onSkipDose = viewModel::onSkip,
         onOpenMedicineDetail = onOpenMedicineDetail,
         onTestLlm = viewModel::testLlm,
+        onOpenOcrTest = { showOcrDialog = true },
         onBack = onBack
     )
 
@@ -112,6 +114,13 @@ fun MainRoute(
         LlmTestDialog(
             response = response,
             onDismiss = { llmResponse = null }
+        )
+    }
+
+    // OCR 테스트 다이얼로그
+    if (showOcrDialog) {
+        com.dailydrug.presentation.ocr.OcrTextDialog(
+            onDismiss = { showOcrDialog = false }
         )
     }
 }
@@ -130,6 +139,7 @@ fun MainScreen(
     onSkipDose: (Long) -> Unit,
     onOpenMedicineDetail: (Long) -> Unit,
     onTestLlm: () -> Unit,
+    onOpenOcrTest: () -> Unit,
     onBack: (() -> Unit)? = null
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -183,6 +193,17 @@ fun MainScreen(
                     contentColor = MaterialTheme.colorScheme.onTertiaryContainer
                 ) {
                     Icon(Icons.Rounded.Psychology, contentDescription = "LLM 테스트")
+                }
+
+                androidx.compose.material3.SmallFloatingActionButton(
+                    onClick = onOpenOcrTest,
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = "OCR 테스트"
+                    )
                 }
 
                 ExtendedFloatingActionButton(
