@@ -1,7 +1,6 @@
 package com.llmmodule.domain.usecase
 
-import com.llmmodule.domain.model.LlmProvider
-import com.llmmodule.domain.model.LlmRequest
+import com.llmmodule.domain.model.*
 import com.llmmodule.domain.repository.LlmRepository
 import javax.inject.Inject
 

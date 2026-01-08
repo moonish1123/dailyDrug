@@ -1,13 +1,10 @@
 package com.llmmodule.data.provider.gpt
 
+import com.llmmodule.domain.model.*
 import com.llmmodule.data.provider.LlmService
 import com.llmmodule.data.provider.gpt.model.GptChatCompletionsRequest
 import com.llmmodule.data.provider.gpt.model.GptMessage
-import com.llmmodule.domain.model.LlmError
-import com.llmmodule.domain.model.LlmProvider
-import com.llmmodule.domain.model.LlmRequest
-import com.llmmodule.domain.model.LlmResponse
-import com.llmmodule.domain.model.LlmResult
+
 import com.networkmodule.api.NetworkClientFactory
 import com.networkmodule.api.NetworkConfig
 import com.networkmodule.api.createService
@@ -52,7 +49,7 @@ internal class GptLlmService @Inject constructor(
             val response = api.createChatCompletion(
                 authorization = "Bearer $apiKey",
                 request = GptChatCompletionsRequest(
-                    model = DEFAULT_MODEL,
+                    model = request.model ?: DEFAULT_MODEL,
                     messages = messages,
                     maxTokens = request.maxOutputTokens,
                     temperature = request.temperature
@@ -120,6 +117,5 @@ internal class GptLlmService @Inject constructor(
             emit(LlmResult.Error(LlmError.Unknown(throwable.message ?: "Unknown error", throwable)))
         }
     }
-
 
 }

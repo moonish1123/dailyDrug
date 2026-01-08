@@ -1,9 +1,9 @@
 package com.llmmodule.integration
 
+import com.llmmodule.domain.model.*
 import com.llmmodule.data.provider.claude.ClaudeLlmService
 import com.llmmodule.data.provider.gpt.GptLlmService
-import com.llmmodule.domain.model.LlmRequest
-import com.llmmodule.domain.model.LlmResult
+
 import com.networkmodule.api.NetworkClientFactory
 import com.networkmodule.api.NetworkLogger
 import java.io.File

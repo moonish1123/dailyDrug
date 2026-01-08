@@ -2,16 +2,17 @@ package com.dailydrug.data.alarm
 
 import android.content.Context
 import android.content.Intent
-import android.util.Log
-import androidx.hilt.work.HiltWorker
+import com.dailydrug.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.dailydrug.data.worker.ReminderScheduler
 import com.dailydrug.domain.model.MedicationStatus
 import com.dailydrug.domain.model.ScheduledDose
 import com.dailydrug.domain.repository.MedicationRepository
-import dagger.assisted.Assisted
-import dagger.assisted.AssistedInject
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -19,22 +20,31 @@ import kotlinx.coroutines.flow.first
 
 /**
  * WorkManager worker that reschedules medication alarms after device boot.
- * Uses WorkManager instead of direct BroadcastReceiver execution for:
- * - Longer execution time allowance
- * - Better Hilt injection support
- * - Guaranteed execution even if app is not running
+ * Uses manual dependency injection via EntryPoint to avoid HiltWorkerFactory initialization issues.
  */
-@HiltWorker
-class BootRescheduleWorker @AssistedInject constructor(
-    @Assisted appContext: Context,
-    @Assisted workerParams: WorkerParameters,
-    private val medicationRepository: MedicationRepository,
-    private val reminderScheduler: ReminderScheduler
-) : CoroutineWorker(appContext, workerParams) {
+class BootRescheduleWorker(
+    context: Context,
+    workerParams: WorkerParameters
+) : CoroutineWorker(context, workerParams) {
+
+    @EntryPoint
+    @InstallIn(SingletonComponent::class)
+    interface BootRescheduleWorkerEntryPoint {
+        fun medicationRepository(): MedicationRepository
+        fun reminderScheduler(): ReminderScheduler
+    }
 
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
     override suspend fun doWork(): Result {
+        val appContext = applicationContext
+        val entryPoint = EntryPointAccessors.fromApplication(
+            appContext,
+            BootRescheduleWorkerEntryPoint::class.java
+        )
+        val medicationRepository = entryPoint.medicationRepository()
+        val reminderScheduler = entryPoint.reminderScheduler()
+
         val startTime = System.currentTimeMillis()
 
         Log.i(TAG, "========================================")

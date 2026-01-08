@@ -32,6 +32,11 @@ class LlmSettingsRepository @Inject constructor(
     private val zaiApiKeyKey = stringPreferencesKey("zai_api_key")
     private val localLlmEnabledKey = booleanPreferencesKey("local_llm_enabled")
     private val autoSwitchToOfflineKey = booleanPreferencesKey("auto_switch_to_offline")
+    
+    // Model Keys
+    private val claudeModelKey = stringPreferencesKey("claude_model")
+    private val gptModelKey = stringPreferencesKey("gpt_model")
+    private val zaiModelKey = stringPreferencesKey("zai_model")
 
     /**
      * 현재 LLM 설정을 Flow로 반환
@@ -47,7 +52,10 @@ class LlmSettingsRepository @Inject constructor(
                 gptApiKey = preferences[gptApiKeyKey] ?: "",
                 zaiApiKey = preferences[zaiApiKeyKey] ?: "",
                 localLlmEnabled = preferences[localLlmEnabledKey] ?: false,
-                autoSwitchToOffline = preferences[autoSwitchToOfflineKey] ?: false
+                autoSwitchToOffline = preferences[autoSwitchToOfflineKey] ?: false,
+                claudeModel = preferences[claudeModelKey] ?: LlmProvider.Claude.defaultModel!!.id,
+                gptModel = preferences[gptModelKey] ?: LlmProvider.Gpt.defaultModel!!.id,
+                zaiModel = preferences[zaiModelKey] ?: LlmProvider.ZAI.defaultModel!!.id
             )
         }
     }
@@ -58,6 +66,20 @@ class LlmSettingsRepository @Inject constructor(
     suspend fun updateSelectedProvider(provider: LlmProvider) {
         context.dataStore.edit { preferences ->
             preferences[selectedProviderKey] = provider.id
+        }
+    }
+
+    /**
+     * 모델 업데이트
+     */
+    suspend fun updateModel(provider: LlmProvider, modelId: String) {
+        context.dataStore.edit { preferences ->
+            when (provider) {
+                is LlmProvider.Claude -> preferences[claudeModelKey] = modelId
+                is LlmProvider.Gpt -> preferences[gptModelKey] = modelId
+                is LlmProvider.ZAI -> preferences[zaiModelKey] = modelId
+                else -> {}
+            }
         }
     }
 
@@ -126,6 +148,9 @@ class LlmSettingsRepository @Inject constructor(
             preferences[zaiApiKeyKey] = settings.zaiApiKey
             preferences[localLlmEnabledKey] = settings.localLlmEnabled
             preferences[autoSwitchToOfflineKey] = settings.autoSwitchToOffline
+            preferences[claudeModelKey] = settings.claudeModel
+            preferences[gptModelKey] = settings.gptModel
+            preferences[zaiModelKey] = settings.zaiModel
         }
     }
 
@@ -147,7 +172,10 @@ class LlmSettingsRepository @Inject constructor(
                 "gpt_api_key" to (preferences[gptApiKeyKey] ?: ""),
                 "zai_api_key" to (preferences[zaiApiKeyKey] ?: ""),
                 "local_llm_enabled" to (preferences[localLlmEnabledKey]?.toString() ?: "true"),
-                "auto_switch_to_offline" to (preferences[autoSwitchToOfflineKey]?.toString() ?: "true")
+                "auto_switch_to_offline" to (preferences[autoSwitchToOfflineKey]?.toString() ?: "true"),
+                "claude_model" to (preferences[claudeModelKey] ?: ""),
+                "gpt_model" to (preferences[gptModelKey] ?: ""),
+                "zai_model" to (preferences[zaiModelKey] ?: "")
             )
         }.first()
     }
@@ -163,6 +191,9 @@ class LlmSettingsRepository @Inject constructor(
             preferences[zaiApiKeyKey] = exportedSettings["zai_api_key"] ?: ""
             preferences[localLlmEnabledKey] = (exportedSettings["local_llm_enabled"] ?: "false").toBoolean()
             preferences[autoSwitchToOfflineKey] = (exportedSettings["auto_switch_to_offline"] ?: "false").toBoolean()
+            preferences[claudeModelKey] = exportedSettings["claude_model"] ?: LlmProvider.Claude.defaultModel!!.id
+            preferences[gptModelKey] = exportedSettings["gpt_model"] ?: LlmProvider.Gpt.defaultModel!!.id
+            preferences[zaiModelKey] = exportedSettings["zai_model"] ?: LlmProvider.ZAI.defaultModel!!.id
         }
     }
 }
@@ -177,6 +208,9 @@ private fun getDefaultLlmSettings(): LlmSettings {
         gptApiKey = "",
         zaiApiKey = "",
         localLlmEnabled = false,
-        autoSwitchToOffline = false
+        autoSwitchToOffline = false,
+        claudeModel = LlmProvider.Claude.defaultModel!!.id,
+        gptModel = LlmProvider.Gpt.defaultModel!!.id,
+        zaiModel = LlmProvider.ZAI.defaultModel!!.id
     )
 }

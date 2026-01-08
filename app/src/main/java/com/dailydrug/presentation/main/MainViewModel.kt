@@ -1,5 +1,6 @@
 package com.dailydrug.presentation.main
 
+import com.llmmodule.domain.model.*
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailydrug.data.repository.LlmSettingsRepository
@@ -10,8 +11,7 @@ import com.dailydrug.domain.usecase.GetTodayMedicationsUseCase
 import com.dailydrug.domain.usecase.RecordMedicationUseCase
 import com.dailydrug.domain.usecase.ScheduleNotificationUseCase
 import com.dailydrug.domain.model.groupByTimePeriod
-import com.llmmodule.domain.model.LlmProvider
-import com.llmmodule.domain.model.LlmRequest
+
 import com.llmmodule.domain.usecase.GenerateTextUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -78,7 +79,7 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 // 1. API Key 확인
-                val settings = llmSettingsRepository.getSettings().first()
+                val settings = llmSettingsRepository.getSettings().firstOrNull()
                     ?: throw IllegalStateException("LLM settings not available")
 
                 val apiKey = when (settings.selectedProvider) {
@@ -96,10 +97,11 @@ class MainViewModel @Inject constructor(
 
                 // 2. 고정된 질문 전송
                 val request = LlmRequest(
-                    prompt = "지구가 속한 계의 특징에 대해 1000자로 설명해줘",
+                    prompt = "KF21 비행기에 대해 1000자 이내로 요약해죠 (성능, 공대공 전투능력, 스텔스 성능, 공대지 성능, 공대함 성능, 회전 반경, 근접 전투 능력 포함)",
+                    model = settings.getModel(settings.selectedProvider),
                     systemInstructions = emptyList(),
-                    temperature = 0.7,
-                    maxOutputTokens = 1000
+                    temperature = 1.0,
+                    maxOutputTokens = 2000
                 )
 
                 // 3. LLM 호출

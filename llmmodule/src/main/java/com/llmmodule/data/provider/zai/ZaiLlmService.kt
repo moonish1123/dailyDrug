@@ -1,13 +1,11 @@
 package com.llmmodule.data.provider.zai
 
+import com.llmmodule.domain.model.*
 import com.llmmodule.data.provider.LlmService
 import com.llmmodule.data.provider.zai.model.ZaiChatCompletionsRequest
 import com.llmmodule.data.provider.zai.model.ZaiMessage
-import com.llmmodule.domain.model.LlmError
-import com.llmmodule.domain.model.LlmProvider
-import com.llmmodule.domain.model.LlmRequest
-import com.llmmodule.domain.model.LlmResponse
-import com.llmmodule.domain.model.LlmResult
+import com.llmmodule.data.provider.zai.model.getReasoningContent
+
 import com.networkmodule.api.NetworkClientFactory
 import com.networkmodule.api.NetworkConfig
 import com.networkmodule.api.createService
@@ -17,7 +15,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlin.collections.buildList
 
-private const val ZAI_BASE_URL = "https://open.bigmodel.cn/"
+private const val ZAI_BASE_URL = "https://api.z.ai/"
 private const val DEFAULT_MODEL = "glm-4.7"
 
 internal class ZaiLlmService @Inject constructor(
@@ -51,7 +49,7 @@ internal class ZaiLlmService @Inject constructor(
             val response = api.createChatCompletion(
                 authorization = "Bearer $apiKey",
                 request = ZaiChatCompletionsRequest(
-                    model = DEFAULT_MODEL,
+                    model = request.model ?: DEFAULT_MODEL,
                     messages = messages,
                     maxTokens = request.maxOutputTokens,
                     temperature = request.temperature?.toDouble(),
@@ -70,7 +68,11 @@ internal class ZaiLlmService @Inject constructor(
                 } else {
                     val message = body.choices.firstOrNull()?.message
                     val text = message?.content
-                    if (text.isNullOrBlank()) {
+                    // Handle reasoning_content if present (GLM-4.5 series thinking mode)
+                    val reasoningText = message?.getReasoningContent()
+                    val fullText = if (reasoningText.isNullOrBlank()) text else "$reasoningText\n\n$text"
+
+                    if (fullText.isNullOrBlank()) {
                         emit(
                             LlmResult.Error(
                                 LlmError.Provider(
@@ -90,7 +92,7 @@ internal class ZaiLlmService @Inject constructor(
                         emit(
                             LlmResult.Success(
                                 LlmResponse(
-                                    text = text,
+                                    text = fullText,
                                     provider = provider,
                                     usage = usage,
                                     raw = body

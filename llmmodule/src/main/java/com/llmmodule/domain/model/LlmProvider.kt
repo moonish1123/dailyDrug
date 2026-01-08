@@ -6,24 +6,65 @@ package com.llmmodule.domain.model
  * Stored identifiers map to persisted configuration values such as
  * "claude/KEY" or "gpt/KEY". Local provider does not require a key.
  */
-sealed class LlmProvider(val id: String, val displayName: String, val isOnline: Boolean) {
-    data object Claude : LlmProvider("claude", "Claude (Anthropic)", true)
-    data object Gpt : LlmProvider("gpt", "GPT (OpenAI)", true)
-    data object ZAI : LlmProvider("zai", "Z.AI (GLM)", true)
+sealed class LlmProvider(
+    val id: String,
+    val displayName: String,
+    val isOnline: Boolean,
+    val supportedModels: List<LlmModel> = emptyList(),
+    val defaultModel: LlmModel? = null
+) {
+    data object Claude : LlmProvider(
+        id = "claude",
+        displayName = "Claude (Anthropic)",
+        isOnline = true,
+        supportedModels = listOf(
+            LlmModel("claude-haiku-4-5-20251001", "Claude Haiku 4.5"),
+            LlmModel("claude-sonnet-4-5-20250929", "Claude Sonnet 4.5")
+        ),
+        defaultModel = LlmModel("claude-haiku-4-5-20251001", "Claude Haiku 4.5")
+    )
+
+    data object Gpt : LlmProvider(
+        id = "gpt",
+        displayName = "GPT (OpenAI)",
+        isOnline = true,
+        supportedModels = listOf(
+            LlmModel("gpt-5-mini", "GPT-5 Mini"),
+            LlmModel("gpt-5.2", "GPT-5.2")
+        ),
+        defaultModel = LlmModel("gpt-5-mini", "GPT-5 Mini")
+    )
+
+    data object ZAI : LlmProvider(
+        id = "zai",
+        displayName = "Z.AI (GLM)",
+        isOnline = true,
+        supportedModels = listOf(
+            LlmModel("glm-4.5-air", "GLM-4.5 Air"),
+            LlmModel("glm-4.7", "GLM-4.7")
+        ),
+        defaultModel = LlmModel("glm-4.5-air", "GLM-4.5 Air")
+    )
+
     data object Local : LlmProvider("local", "Local LLM", false)
 
     companion object {
-        private val providers = listOf(Claude, Gpt, ZAI, Local)
+        fun getAllProviders(): List<LlmProvider> = listOf(Claude, Gpt, ZAI, Local)
 
-        fun getAllProviders(): List<LlmProvider> = providers
+        fun getOnlineProviders(): List<LlmProvider> = getAllProviders().filter { it.isOnline }
 
-        fun getOnlineProviders(): List<LlmProvider> = providers.filter { it.isOnline }
-
-        fun getOfflineProviders(): List<LlmProvider> = providers.filter { !it.isOnline }
+        fun getOfflineProviders(): List<LlmProvider> = getAllProviders().filter { !it.isOnline }
 
         fun fromId(id: String?): LlmProvider? {
             if (id == null) return null
-            return providers.firstOrNull { it.id.equals(id, ignoreCase = true) }
+
+            // 하위 호환성: 이전 버전에서 "openai"로 저장된 ID를 Gpt로 매핑
+            val normalizedId = when (id.lowercase()) {
+                "openai" -> "gpt"
+                else -> id.lowercase()
+            }
+
+            return getAllProviders().firstOrNull { it.id.equals(normalizedId, ignoreCase = true) }
         }
 
         /**
@@ -45,3 +86,8 @@ sealed class LlmProvider(val id: String, val displayName: String, val isOnline: 
         }
     }
 }
+
+data class LlmModel(
+    val id: String,
+    val displayName: String
+)

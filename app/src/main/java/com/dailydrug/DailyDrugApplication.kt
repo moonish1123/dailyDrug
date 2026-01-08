@@ -14,12 +14,29 @@ class DailyDrugApplication : Application(), Configuration.Provider {
     lateinit var workerFactory: HiltWorkerFactory
 
     override val workManagerConfiguration: Configuration
-        get() = Configuration.Builder()
-            .setWorkerFactory(workerFactory)
-            .build()
+        get() {
+            if (::workerFactory.isInitialized) {
+                android.util.Log.i("DailyDrugApp", "✅ Configuring WorkManager with HiltWorkerFactory")
+            } else {
+                android.util.Log.e("DailyDrugApp", "❌ HiltWorkerFactory NOT initialized yet!")
+            }
+            return Configuration.Builder()
+                .setWorkerFactory(workerFactory)
+                .build()
+        }
 
     override fun onCreate() {
         super.onCreate()
+
+        // Explicitly initialize WorkManager with Hilt configuration
+        // This ensures HiltWorkerFactory is used instead of the default factory
+        try {
+            androidx.work.WorkManager.initialize(this, workManagerConfiguration)
+            android.util.Log.i("DailyDrugApp", "✅ WorkManager initialized explicitly")
+        } catch (e: Exception) {
+            android.util.Log.w("DailyDrugApp", "WorkManager already initialized", e)
+        }
+
         // 앱 시작 시 위젯 갱신 (설치/재설치 후 빈 위젯 문제 해결)
         try {
             TodayMedicationWidgetProvider.refreshAll(this)

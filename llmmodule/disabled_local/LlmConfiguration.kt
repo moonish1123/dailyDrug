@@ -105,7 +105,7 @@ class LlmConfigurationManager @Inject constructor(
                 modelPath = "llama-7b-4bit-q8.pte",
                 tokenizerPath = "tokenizer.model",
                 maxTokens = 512,
-                temperature = 0.7f,
+                temperature = 1f,
                 topK = 40,
                 topP = 0.9f,
                 repetitionPenalty = 1.1f,
@@ -146,7 +146,7 @@ class LlmConfigurationManager @Inject constructor(
                 maxMemory > 2L * 1024 * 1024 * 1024 -> 256 // >2GB RAM
                 else -> 128 // Low memory devices
             },
-            temperature = 0.7f,
+            temperature = 1f,
             topK = 40,
             topP = 0.9f,
             repetitionPenalty = 1.1f,

@@ -12,6 +12,7 @@ internal interface GptApiService {
     @POST("v1/chat/completions")
     suspend fun createChatCompletion(
         @Header("Authorization") authorization: String,
+        @Header("Content-Type") contentType: String = "application/json",
         @Body request: GptChatCompletionsRequest
     ): Response<GptChatCompletionsResponse>
 

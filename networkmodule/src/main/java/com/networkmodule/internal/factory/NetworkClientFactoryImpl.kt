@@ -1,6 +1,7 @@
 package com.networkmodule.internal.factory
 
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import com.networkmodule.BuildConfig
 import com.networkmodule.api.NetworkClientFactory
 import com.networkmodule.api.NetworkConfig
 import com.networkmodule.api.NetworkLogger
@@ -25,12 +26,24 @@ internal class NetworkClientFactoryImpl(
 
     private val errorMapper = ErrorMapper()
 
+    /**
+     * Debug build에서는 항상 로깅 활성화
+     */
+    private fun enableLoggingForConfig(config: NetworkConfig): NetworkConfig {
+        return if (BuildConfig.DEBUG && !config.enableLogging) {
+            config.copy(enableLogging = true)
+        } else {
+            config
+        }
+    }
+
     override fun <T> createService(
         serviceClass: Class<T>,
         baseUrl: String,
         config: NetworkConfig
     ): T {
-        val okHttpClient = buildOkHttpClient(config)
+        val configWithLogging = enableLoggingForConfig(config)
+        val okHttpClient = buildOkHttpClient(configWithLogging)
         val retrofit = Retrofit.Builder()
             .baseUrl(baseUrl)
             .client(okHttpClient)

@@ -1,5 +1,6 @@
 package com.dailydrug.presentation.llm
 
+import com.llmmodule.domain.model.*
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailydrug.data.model.ConnectionTestResult
@@ -7,11 +8,9 @@ import com.dailydrug.data.model.LlmSettings
 import com.dailydrug.data.model.LlmSettingsEvent
 import com.dailydrug.data.model.LlmSettingsUiState
 import com.dailydrug.data.repository.LlmSettingsRepository
-import com.llmmodule.domain.model.LlmProvider
+
 import com.llmmodule.domain.usecase.GenerateTextUseCase
-import com.llmmodule.domain.model.LlmRequest
-import com.llmmodule.domain.model.LlmResponse
-import com.llmmodule.domain.model.LlmResult
+
 import com.networkmodule.api.NetworkResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -20,6 +19,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
+    /**
+     * API 연결 테스트
+     */
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -80,6 +83,9 @@ class LlmSettingsViewModel @Inject constructor(
             is LlmSettingsEvent.ApiKeyUpdated -> {
                 updateApiKey(event.provider, event.apiKey)
             }
+            is LlmSettingsEvent.ModelSelected -> {
+                updateModel(event.provider, event.modelId)
+            }
             is LlmSettingsEvent.TestConnection -> {
                 testConnection(event.provider)
             }
@@ -127,6 +133,21 @@ class LlmSettingsViewModel @Inject constructor(
     }
 
     /**
+     * 모델 업데이트
+     */
+    private fun updateModel(provider: LlmProvider, modelId: String) {
+        viewModelScope.launch {
+            try {
+                settingsRepository.updateModel(provider, modelId)
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(error = "모델 변경 실패: ${e.message}")
+                }
+            }
+        }
+    }
+
+    /**
      * API 연결 테스트
      */
     private fun testConnection(provider: LlmProvider) {
@@ -150,10 +171,15 @@ class LlmSettingsViewModel @Inject constructor(
                     throw Exception("API 키가 설정되지 않았습니다")
                 }
 
+                // 현재 모델 가져오기
+                val currentSettings = settingsRepository.getSettings().first()
+                val currentModel = currentSettings.getModel(provider)
+
                 // 테스트용 요청
                 val testPrompt = "테스트: 약물 복용에 대한 기본 정보를 알려주세요"
                 val request = LlmRequest(
                     prompt = testPrompt,
+                    model = currentModel,
                     maxOutputTokens = 10 // 테스트용으로 짧게
                 )
 

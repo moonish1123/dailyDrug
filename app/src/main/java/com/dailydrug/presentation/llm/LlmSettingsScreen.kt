@@ -117,6 +117,10 @@ fun LlmSettingsScreen(
                     provider = provider,
                     isSelected = uiState.settings.selectedProvider == provider,
                     hasApiKey = uiState.isApiKeyConfigured(provider),
+                    selectedModel = uiState.settings.getModel(provider),
+                    onModelSelected = { modelId ->
+                        viewModel.onEvent(LlmSettingsEvent.ModelSelected(provider, modelId))
+                    },
                     onClick = {
                         viewModel.onEvent(LlmSettingsEvent.ProviderSelected(provider))
                     },
@@ -612,13 +616,15 @@ private fun ApiKeyDialog(
 }
 
 /**
- * 통합 프로바이더 카드 (선택 + API 키 설정)
+ * 통합 프로바이더 카드 (선택 + API 키 설정 + 모델 선택)
  */
 @Composable
 private fun ProviderCard(
     provider: LlmProvider,
     isSelected: Boolean,
     hasApiKey: Boolean,
+    selectedModel: String,
+    onModelSelected: (String) -> Unit,
     onClick: () -> Unit,
     onSetApiKey: () -> Unit
 ) {
@@ -684,6 +690,53 @@ private fun ProviderCard(
                     selected = isSelected,
                     onClick = onClick
                 )
+            }
+
+            // Model Selection (if supported)
+            if (provider.supportedModels.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                var expanded by remember { mutableStateOf(false) }
+                val currentModelName = provider.supportedModels.find { it.id == selectedModel }?.displayName ?: selectedModel
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "사용 모델:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    Box {
+                        OutlinedButton(
+                            onClick = { expanded = true }
+                        ) {
+                            Text(currentModelName)
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                        }
+                        
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }
+                        ) {
+                            provider.supportedModels.forEach { model ->
+                                DropdownMenuItem(
+                                    text = { Text(model.displayName) },
+                                    onClick = {
+                                        onModelSelected(model.id)
+                                        expanded = false
+                                    },
+                                    trailingIcon = if (model.id == selectedModel) {
+                                        { Icon(Icons.Default.Check, contentDescription = null) }
+                                    } else null
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             // API Key status and set button (for online providers)

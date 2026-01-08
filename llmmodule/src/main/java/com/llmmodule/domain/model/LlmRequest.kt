@@ -5,6 +5,7 @@ package com.llmmodule.domain.model
  */
 data class LlmRequest(
     val prompt: String,
+    val model: String? = null,
     val systemInstructions: List<String> = emptyList(),
     val temperature: Double? = null,
     val topK: Int? = null,

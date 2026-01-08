@@ -1,13 +1,11 @@
 package com.llmmodule.integration
 
+import com.llmmodule.domain.model.*
 import com.llmmodule.data.asset.ModelAssetManager
 import com.llmmodule.data.local.ExecutorRunner
 import com.llmmodule.data.local.FallbackTokenizer
 import com.llmmodule.data.provider.local.LocalLlmService
-import com.llmmodule.domain.model.LlmError
-import com.llmmodule.domain.model.LlmProvider
-import com.llmmodule.domain.model.LlmRequest
-import com.llmmodule.domain.model.LlmResult
+
 import com.llmmodule.testing.FakeLlmRepository
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*

@@ -28,14 +28,15 @@ class TodayMedicationWidgetProvider : AppWidgetProvider() {
     ) {
         android.util.Log.d(TAG, "🔄 Widget: onUpdate called for ${appWidgetIds.size} widgets")
 
+        // 먼저 RemoteViews를 업데이트
         appWidgetIds.forEach { appWidgetId ->
             val views = createRemoteViews(context, appWidgetId)
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
-
-        // RemoteViewsService에 데이터 변경 알림
+        // 그 다음 데이터 변경 알림 (RemoteViewsService에 onDataSetChanged 호출)
         appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetIds, R.id.widget_list)
-        android.util.Log.d(TAG, "✅ Widget: Notified data changed for widget list")
+
+        android.util.Log.d(TAG, "✅ Widget: onUpdate completed")
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -44,7 +45,10 @@ class TodayMedicationWidgetProvider : AppWidgetProvider() {
         android.util.Log.d(TAG, "Action: ${intent.action}")
         android.util.Log.d(TAG, "Extras: ${intent.extras?.keySet()?.joinToString()}")
 
+        // Call super first - handles standard widget actions (ACTION_APPWIDGET_UPDATE, etc.)
         super.onReceive(context, intent)
+
+        // Handle custom actions only
         when (intent.action) {
             ACTION_TOGGLE_TAKEN -> {
                 val recordId = intent.getLongExtra(EXTRA_RECORD_ID, -1L)
@@ -55,16 +59,14 @@ class TodayMedicationWidgetProvider : AppWidgetProvider() {
                     android.util.Log.e(TAG, "❌ Invalid recordId: $recordId")
                 }
             }
-            ACTION_REFRESH -> {
-                android.util.Log.i(TAG, "🔄 ACTION_REFRESH received")
-                refreshAll(context)
-            }
             ACTION_OPEN_APP -> {
                 android.util.Log.i(TAG, "🚀 ACTION_OPEN_APP received")
                 openMainScreen(context)
             }
-            else -> {
-                android.util.Log.w(TAG, "⚠️ Unknown action: ${intent.action}")
+            // Note: ACTION_REFRESH is defined but not actively used
+            ACTION_REFRESH -> {
+                android.util.Log.i(TAG, "🔄 ACTION_REFRESH received")
+                refreshAll(context)
             }
         }
         android.util.Log.d(TAG, "========================================")
@@ -131,11 +133,18 @@ class TodayMedicationWidgetProvider : AppWidgetProvider() {
             val component = ComponentName(context, TodayMedicationWidgetProvider::class.java)
             val appWidgetIds = appWidgetManager.getAppWidgetIds(component)
             if (appWidgetIds.isEmpty()) return
-            appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetIds, R.id.widget_list)
+
+            android.util.Log.d(TAG, "🔄 Widget: refreshAll() for ${appWidgetIds.size} widgets")
+
+            // 먼저 RemoteViews를 업데이트
             appWidgetIds.forEach { id ->
                 val views = createRemoteViews(context, id)
                 appWidgetManager.updateAppWidget(id, views)
             }
+            // 그 다음 데이터 변경 알림 (RemoteViewsService에 onDataSetChanged 호출)
+            appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetIds, R.id.widget_list)
+
+            android.util.Log.d(TAG, "✅ Widget: refreshAll() completed")
         }
 
         private fun createRemoteViews(context: Context, appWidgetId: Int): RemoteViews {

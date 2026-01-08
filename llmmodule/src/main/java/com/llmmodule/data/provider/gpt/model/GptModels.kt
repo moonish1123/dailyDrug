@@ -8,7 +8,7 @@ import kotlinx.serialization.json.Json
 internal data class GptChatCompletionsRequest(
     val model: String,
     val messages: List<GptMessage>,
-    @SerialName("max_tokens") val maxTokens: Int? = null,
+    @SerialName("max_completion_tokens") val maxTokens: Int? = null,
     val temperature: Double? = null
 )
 

@@ -1,14 +1,11 @@
 package com.llmmodule.data.provider.claude
 
+import com.llmmodule.domain.model.*
 import com.llmmodule.data.provider.LlmService
 import com.llmmodule.data.provider.claude.model.ClaudeMessage
 import com.llmmodule.data.provider.claude.model.ClaudeMessagesRequest
 import com.llmmodule.data.provider.claude.model.ClaudeResponseContent
-import com.llmmodule.domain.model.LlmError
-import com.llmmodule.domain.model.LlmProvider
-import com.llmmodule.domain.model.LlmRequest
-import com.llmmodule.domain.model.LlmResponse
-import com.llmmodule.domain.model.LlmResult
+
 import com.networkmodule.api.NetworkClientFactory
 import com.networkmodule.api.NetworkConfig
 import com.networkmodule.api.createService
@@ -61,7 +58,7 @@ internal class ClaudeLlmService @Inject constructor(
                 apiKey = apiKey,
                 version = CLAUDE_VERSION,
                 request = ClaudeMessagesRequest(
-                    model = DEFAULT_MODEL,
+                    model = request.model ?: DEFAULT_MODEL,
                     maxTokens = maxTokens,
                     messages = messages,
                     temperature = request.temperature,

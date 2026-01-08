@@ -1,6 +1,6 @@
 package com.dailydrug.permission
 
-import android.util.Log
+import com.dailydrug.util.Log
 import com.permissionmodule.domain.model.Permission
 import com.permissionmodule.presentation.contract.PermissionRequestContract
 

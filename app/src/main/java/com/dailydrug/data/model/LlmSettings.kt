@@ -11,7 +11,10 @@ data class LlmSettings(
     val gptApiKey: String = "",
     val zaiApiKey: String = "",
     val localLlmEnabled: Boolean = true,
-    val autoSwitchToOffline: Boolean = true
+    val autoSwitchToOffline: Boolean = true,
+    val claudeModel: String = LlmProvider.Claude.defaultModel!!.id,
+    val gptModel: String = LlmProvider.Gpt.defaultModel!!.id,
+    val zaiModel: String = LlmProvider.ZAI.defaultModel!!.id
 ) {
     /**
      * 현재 선택된 프로바이더의 API 키를 반환
@@ -34,6 +37,30 @@ data class LlmSettings(
             is LlmProvider.Gpt -> copy(gptApiKey = apiKey)
             is LlmProvider.ZAI -> copy(zaiApiKey = apiKey)
             is LlmProvider.Local -> this
+        }
+    }
+
+    /**
+     * 프로바이더에 해당하는 모델을 업데이트
+     */
+    fun updateModel(provider: LlmProvider, modelId: String): LlmSettings {
+        return when (provider) {
+            is LlmProvider.Claude -> copy(claudeModel = modelId)
+            is LlmProvider.Gpt -> copy(gptModel = modelId)
+            is LlmProvider.ZAI -> copy(zaiModel = modelId)
+            else -> this
+        }
+    }
+
+    /**
+     * 프로바이더의 현재 설정된 모델 ID 반환
+     */
+    fun getModel(provider: LlmProvider): String {
+        return when (provider) {
+            is LlmProvider.Claude -> claudeModel
+            is LlmProvider.Gpt -> gptModel
+            is LlmProvider.ZAI -> zaiModel
+            else -> ""
         }
     }
 
@@ -121,6 +148,7 @@ data class ConnectionTestResult(
 sealed class LlmSettingsEvent {
     data class ProviderSelected(val provider: LlmProvider) : LlmSettingsEvent()
     data class ApiKeyUpdated(val provider: LlmProvider, val apiKey: String) : LlmSettingsEvent()
+    data class ModelSelected(val provider: LlmProvider, val modelId: String) : LlmSettingsEvent()
     data class TestConnection(val provider: LlmProvider) : LlmSettingsEvent()
     data class ShowApiKeyDialog(val provider: LlmProvider) : LlmSettingsEvent()
     object DismissDialog : LlmSettingsEvent()
