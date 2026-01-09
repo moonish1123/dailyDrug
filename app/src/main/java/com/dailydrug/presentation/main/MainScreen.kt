@@ -143,8 +143,10 @@ fun MainRoute(
         )
     }
 
-    // Scan result dialog
+    // Scan result dialog - show for all processing states
     when (val state = scannerUiState) {
+        is ScannerUiState.OcrProcessing,
+        is ScannerUiState.LlmProcessing,
         is ScannerUiState.Success,
         is ScannerUiState.Error -> {
             ScanResultDialog(

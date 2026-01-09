@@ -74,8 +74,8 @@ fun ScanResultDialog(
                 }
                 is ScannerUiState.LlmProcessing -> {
                     LoadingContent(
-                        message = "처방전을 분석하는 중...",
-                        detailMessage = "AI가 복용 스케줄을 정리하고 있습니다..."
+                        message = "AI가 분석중입니다...",
+                        detailMessage = "처방전을 분석하여 복용 스케줄을 정리하고 있습니다..."
                     )
                 }
                 is ScannerUiState.Success -> {
