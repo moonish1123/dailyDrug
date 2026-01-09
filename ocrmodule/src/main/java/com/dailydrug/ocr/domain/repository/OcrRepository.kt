@@ -1,12 +1,9 @@
 package com.dailydrug.ocr.domain.repository
 
 import android.graphics.Bitmap
-import com.dailydrug.ocr.domain.model.DrugInfo
 import com.dailydrug.ocr.domain.model.OcrLanguage
 
 interface OcrRepository {
-    suspend fun analyzeDrugBag(image: Bitmap): Result<DrugInfo>
-
     /**
      * 이미지에서 텍스트를 추출합니다 (raw text 반환)
      *
