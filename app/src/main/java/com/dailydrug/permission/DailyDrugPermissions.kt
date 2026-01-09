@@ -47,6 +47,17 @@ object DailyDrugPermissions {
     )
 
     /**
+     * 카메라 권한
+     */
+    val CAMERA = Permission(
+        id = "camera",
+        androidPermission = Manifest.permission.CAMERA,
+        type = PermissionType.RUNTIME,
+        description = "사진 촬영을 위해 카메라 권한이 필요합니다.",
+        settingsAction = null
+    )
+
+    /**
      * 모든 필수 권한 목록
      */
     val ALL = listOf(

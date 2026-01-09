@@ -44,6 +44,8 @@ class SpecialPermissionHandler(
         }
 
         if (intent != null) {
+            // Activity에서 시작하거나, Context로 시작할 때는 FLAG_ACTIVITY_NEW_TASK 필요
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
             onResult(PermissionResult.Granted) // Special 권한은 설정 화면 이동만 수행
         } else {

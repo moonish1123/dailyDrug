@@ -19,10 +19,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CalendarToday
+import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Medication
-import androidx.compose.material.icons.rounded.Psychology
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.AssistChip
@@ -38,8 +38,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
-import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -68,6 +68,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dailydrug.domain.model.MedicationStatus
 import com.dailydrug.domain.model.MedicationTimePeriod
+import com.dailydrug.presentation.scanner.ScannerViewModel
+import com.dailydrug.presentation.scanner.ScannerUiState
+import com.dailydrug.presentation.scanner.ScanResultDialog
+import com.dailydrug.photopicker.presentation.camera.CameraCaptureScreen
 import kotlinx.coroutines.flow.collectLatest
 import java.time.format.DateTimeFormatter
 
@@ -77,18 +81,19 @@ fun MainRoute(
     onOpenSettings: () -> Unit,
     onOpenMedicineDetail: (Long) -> Unit,
     onBack: (() -> Unit)? = null,
-    viewModel: MainViewModel = hiltViewModel()
+    viewModel: MainViewModel = hiltViewModel(),
+    scannerViewModel: ScannerViewModel = hiltViewModel()
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val scannerUiState by scannerViewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    var llmResponse by remember { mutableStateOf<String?>(null) }
-    var showOcrDialog by remember { mutableStateOf(false) }
+    var showScanner by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collectLatest { event ->
             when (event) {
                 is MainUiEvent.ShowMessage -> snackbarHostState.showSnackbar(event.message)
-                is MainUiEvent.ShowLlmResponse -> llmResponse = event.text
             }
         }
     }
@@ -104,24 +109,51 @@ fun MainRoute(
         onToggleTaken = viewModel::onToggleTaken,
         onSkipDose = viewModel::onSkip,
         onOpenMedicineDetail = onOpenMedicineDetail,
-        onTestLlm = viewModel::testLlm,
-        onOpenOcrTest = { showOcrDialog = true },
+        onOpenScanner = { showScanner = true },
         onBack = onBack
     )
 
-    // LLM 테스트 응답 다이얼로그
-    llmResponse?.let { response ->
-        LlmTestDialog(
-            response = response,
-            onDismiss = { llmResponse = null }
+    // Camera capture screen
+    if (showScanner) {
+        var capturedUri by remember { mutableStateOf<android.net.Uri?>(null) }
+
+        LaunchedEffect(capturedUri) {
+            capturedUri?.let { uri ->
+                try {
+                    val bitmap = com.dailydrug.presentation.ocr.ImageUtils.uriToBitmapOrThrow(context, uri)
+                    scannerViewModel.processPrescriptionImage(bitmap)
+                    showScanner = false
+                } catch (e: Exception) {
+                    // Handle error
+                }
+                capturedUri = null
+            }
+        }
+
+        CameraCaptureScreen(
+            onBack = { showScanner = false },
+            onGallerySelected = { uri ->
+                // Process image from gallery
+                capturedUri = uri
+            },
+            onImageCaptured = { uri ->
+                // Process image from camera
+                capturedUri = uri
+            }
         )
     }
 
-    // OCR 테스트 다이얼로그
-    if (showOcrDialog) {
-        com.dailydrug.presentation.ocr.OcrTextDialog(
-            onDismiss = { showOcrDialog = false }
-        )
+    // Scan result dialog
+    when (val state = scannerUiState) {
+        is ScannerUiState.Success,
+        is ScannerUiState.Error -> {
+            ScanResultDialog(
+                uiState = state,
+                onDismiss = { scannerViewModel.reset() },
+                onRetry = { showScanner = true }
+            )
+        }
+        else -> Unit
     }
 }
 
@@ -138,8 +170,7 @@ fun MainScreen(
     onToggleTaken: (Long, MedicationStatus) -> Unit,
     onSkipDose: (Long) -> Unit,
     onOpenMedicineDetail: (Long) -> Unit,
-    onTestLlm: () -> Unit,
-    onOpenOcrTest: () -> Unit,
+    onOpenScanner: () -> Unit,
     onBack: (() -> Unit)? = null
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -187,25 +218,22 @@ fun MainScreen(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                androidx.compose.material3.SmallFloatingActionButton(
-                    onClick = onTestLlm,
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                ) {
-                    Icon(Icons.Rounded.Psychology, contentDescription = "LLM 테스트")
-                }
+                // 처방전 스캔 버튼
+                ExtendedFloatingActionButton(
+                    onClick = onOpenScanner,
+                    icon = {
+                        Icon(
+                            Icons.Rounded.CameraAlt,
+                            contentDescription = "처방전 스캔",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    text = { Text("처방전 스캔") },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
 
-                androidx.compose.material3.SmallFloatingActionButton(
-                    onClick = onOpenOcrTest,
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Add,
-                        contentDescription = "OCR 테스트"
-                    )
-                }
-
+                // 새 스케줄 추가 버튼
                 ExtendedFloatingActionButton(
                     onClick = onAddSchedule,
                     icon = { Icon(Icons.Rounded.Add, contentDescription = "스케줄 추가") },

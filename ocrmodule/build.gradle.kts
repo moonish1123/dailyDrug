@@ -34,12 +34,21 @@ android {
 }
 
 dependencies {
+    // ML Kit Text Recognition
+    implementation(libs.mlkit.text.recognition)
     implementation(libs.mlkit.text.recognition.korean)
+    implementation(libs.mlkit.text.recognition.chinese)
+    implementation(libs.mlkit.text.recognition.japanese)
+
+    // Coroutines
     implementation(libs.kotlinx.coroutines.play.services)
-    implementation(libs.hilt.android)
-    ksp(libs.hilt.compiler)
     implementation(libs.kotlinx.coroutines.android)
 
+    // Hilt
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+
+    // Testing
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")

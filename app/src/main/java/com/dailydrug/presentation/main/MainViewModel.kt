@@ -1,9 +1,7 @@
 package com.dailydrug.presentation.main
 
-import com.llmmodule.domain.model.*
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.dailydrug.data.repository.LlmSettingsRepository
 import com.dailydrug.domain.model.ScheduledDose
 import com.dailydrug.domain.model.MedicationStatus
 import com.dailydrug.domain.model.MedicationTimePeriod
@@ -11,20 +9,15 @@ import com.dailydrug.domain.usecase.GetTodayMedicationsUseCase
 import com.dailydrug.domain.usecase.RecordMedicationUseCase
 import com.dailydrug.domain.usecase.ScheduleNotificationUseCase
 import com.dailydrug.domain.model.groupByTimePeriod
-
-import com.llmmodule.domain.usecase.GenerateTextUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.LocalTime
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -35,10 +28,7 @@ import kotlinx.coroutines.launch
 class MainViewModel @Inject constructor(
     private val getTodayMedicationsUseCase: GetTodayMedicationsUseCase,
     private val recordMedicationUseCase: RecordMedicationUseCase,
-    private val scheduleNotificationUseCase: ScheduleNotificationUseCase,
-    private val createScheduleUseCase: com.dailydrug.domain.usecase.CreateScheduleUseCase,
-    private val generateTextUseCase: GenerateTextUseCase,
-    private val llmSettingsRepository: LlmSettingsRepository
+    private val scheduleNotificationUseCase: ScheduleNotificationUseCase
 ) : ViewModel() {
 
     private val selectedDate = MutableStateFlow(LocalDate.now())
@@ -72,58 +62,6 @@ class MainViewModel @Inject constructor(
                         )
                     }
                 }
-        }
-    }
-
-    fun testLlm() {
-        viewModelScope.launch {
-            runCatching {
-                // 1. API Key 확인
-                val settings = llmSettingsRepository.getSettings().firstOrNull()
-                    ?: throw IllegalStateException("LLM settings not available")
-
-                val apiKey = when (settings.selectedProvider) {
-                    is LlmProvider.ZAI -> settings.zaiApiKey
-                    is LlmProvider.Claude -> settings.claudeApiKey
-                    is LlmProvider.Gpt -> settings.gptApiKey
-                    is LlmProvider.Local -> null
-                    else -> null
-                }
-
-                if (apiKey.isNullOrBlank()) {
-                    _events.emit(MainUiEvent.ShowMessage("API Key가 설정되지 않았습니다. 설정에서 API Key를 입력해주세요."))
-                    return@launch
-                }
-
-                // 2. 고정된 질문 전송
-                val request = LlmRequest(
-                    prompt = "KF21 비행기에 대해 1000자 이내로 요약해죠 (성능, 공대공 전투능력, 스텔스 성능, 공대지 성능, 공대함 성능, 회전 반경, 근접 전투 능력 포함)",
-                    model = settings.getModel(settings.selectedProvider),
-                    systemInstructions = emptyList(),
-                    temperature = 1.0,
-                    maxOutputTokens = 2000
-                )
-
-                // 3. LLM 호출
-                generateTextUseCase(request, settings.selectedProvider, apiKey).collect { result ->
-                    when (result) {
-                        is com.llmmodule.domain.model.LlmResult.Success -> {
-                            _events.emit(MainUiEvent.ShowLlmResponse(result.data.text))
-                        }
-                        is com.llmmodule.domain.model.LlmResult.Error -> {
-                            val errorMessage = when (result.error) {
-                                is com.llmmodule.domain.model.LlmError.ApiKeyMissing -> "API Key가 필요합니다"
-                                is com.llmmodule.domain.model.LlmError.Network -> "네트워크 오류"
-                                else -> "LLM 오류: ${result.error.message}"
-                            }
-                            _events.emit(MainUiEvent.ShowMessage(errorMessage))
-                        }
-                    }
-                }
-            }.onFailure { e ->
-                e.printStackTrace()
-                _events.emit(MainUiEvent.ShowMessage("LLM 호출 실패: ${e.message}"))
-            }
         }
     }
 
@@ -211,7 +149,6 @@ class MainViewModel @Inject constructor(
 
 sealed interface MainUiEvent {
     data class ShowMessage(val message: String) : MainUiEvent
-    data class ShowLlmResponse(val text: String) : MainUiEvent
 }
 
 /**
